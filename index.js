@@ -403,6 +403,7 @@ async function loadSettings() {
     $('#qf_min_p').val(settings.minP);
     $('#qf_top_a').val(settings.topA);
     $('#qf_seed').val(settings.seed);
+    $('#qf_reasoning_effort').val(settings.reasoningEffort);
     
     if(settings.apiModel) {
         if ($('#qf_api_model option[value="' + settings.apiModel + '"]').length === 0) {
@@ -883,7 +884,16 @@ jQuery(async () => {
         updateSetting('y', '50%');
         updateSetting('scale', 1.0);
         updateSetting('freePositions', {});
+        
+        // Force DOM Update for Mobile Response
+        if(container) {
+            container.style.left = '50%';
+            container.style.top = '50%';
+            container.style.transform = 'translate(-50%, -50%) scale(1.0)';
+        }
+        
         renderUI(true);
+        toastr.info('Position reset to center.');
     });
 
     $('#qf_enhancer_enabled').on('change', function() { updateSetting('enhancerEnabled', $(this).prop('checked')); });
