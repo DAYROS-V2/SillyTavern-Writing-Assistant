@@ -1,155 +1,154 @@
-
-/* Main Container */
+/* style.css */
+.quick-formatting-settings-wrapper {
+    padding: 5px;
+}
+.qf-details {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 5px;
+    margin-bottom: 5px;
+    padding: 5px;
+}
+.qf-details summary {
+    cursor: pointer;
+    font-weight: bold;
+    opacity: 0.8;
+    user-select: none;
+    padding: 2px;
+}
+.qf-details-content {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.qf-setting-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+.qf-setting-row label {
+    flex: 1;
+    font-size: 0.9em;
+    opacity: 0.9;
+}
+.qf-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
 .quick-format-container {
+    position: fixed;
     display: flex;
     gap: 5px;
     padding: 5px;
-    background-color: #1a1b1e;
+    background: #1a1b1e;
     border: 1px solid #454545;
     border-radius: 8px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-    align-items: center;
-    justify-content: center;
-    user-select: none;
-    touch-action: none; /* Critical for mobile drag */
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     z-index: 800;
-    transition: box-shadow 0.2s, border-color 0.2s;
-    flex-wrap: wrap;
-    max-width: 90vw;
+    align-items: center;
+    /* Removed transform: translate(-50%, -50%) - now using top-left positioning */
+    user-select: none;
 }
-
 .quick-format-container.vertical {
     flex-direction: column;
-    width: min-content;
 }
-
-/* Edit Mode Styling */
-.quick-format-container.editing, .qf-free-mode-btn.editing {
-    border-color: #963cff;
-    box-shadow: 0 0 15px rgba(150, 60, 255, 0.5);
-    background-color: rgba(26, 27, 30, 0.95);
-    z-index: 20000 !important;
+.quick-format-container.editing {
+    border: 2px dashed #963cff;
+    box-shadow: 0 0 15px #963cff;
     cursor: move;
+    background: rgba(0,0,0,0.95);
 }
-
-/* Buttons */
 .quick-format-btn {
+    min-width: 30px;
+    height: 24px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.1);
+    color: var(--SmartThemeBodyColor);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: monospace;
     display: flex;
     align-items: center;
     justify-content: center;
-    min-width: 32px;
-    height: 32px;
-    padding: 0 10px;
-    background-color: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 5px;
-    color: #e1e1e1;
-    font-size: 14px;
-    cursor: pointer;
     transition: all 0.2s;
-    font-family: monospace;
 }
-
 .quick-format-btn:hover {
-    background-color: rgba(255, 255, 255, 0.15);
-    transform: translateY(-1px);
+    background: var(--SmartThemeAccentColor);
+    color: #fff;
 }
-
-.quick-format-btn:active {
-    transform: translateY(0);
-}
-
-/* Edit Mode - Disable interactions on buttons to allow drag */
-.editing .quick-format-btn {
-    pointer-events: none;
-    opacity: 0.6;
-}
-
-/* Free Mode */
-.qf-free-wrapper {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 0;
-    height: 0;
-}
-
-.qf-free-mode-btn {
-    position: fixed;
-    z-index: 800;
-    touch-action: none;
-}
-
-.qf-free-controls {
-    position: fixed;
-    display: flex;
-    gap: 2px;
-    z-index: 20000;
-    padding: 2px;
-    background: rgba(0,0,0,0.8);
-    border-radius: 4px;
-    transform: translate(-50%, -120%); /* Sit above the anchor point */
-}
-
-/* Special Buttons */
-.qf-enhance-btn { font-weight: bold; }
-.qf-undo-btn { color: #ff6b6b; }
-
-/* Colors */
-.qf-btn-white { color: #ffffff; }
-.qf-btn-gold { color: #ffd700; border-color: rgba(255, 215, 0, 0.3); }
-.qf-btn-purple { color: #d0bfff; border-color: rgba(208, 191, 255, 0.3); }
-.qf-btn-green { color: #90ee90; border-color: rgba(144, 238, 144, 0.3); }
-
-/* Divider */
 .qf-divider {
     width: 1px;
     height: 20px;
-    background-color: rgba(255, 255, 255, 0.2);
-    margin: 0 4px;
+    background: rgba(255,255,255,0.3);
+    margin: 0 2px;
 }
 .vertical .qf-divider {
     width: 20px;
     height: 1px;
-    margin: 4px 0;
+    margin: 2px 0;
 }
-
-/* Edit Controls (Grouped) */
-.qf-edit-controls {
+.quick-format-controls {
     display: none;
     position: absolute;
     top: -35px;
     right: 0;
-    background: #2b2b2b;
-    padding: 4px;
+    background: rgba(0,0,0,0.8);
+    padding: 3px;
     border-radius: 4px;
-    gap: 4px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
-    pointer-events: auto !important;
+    gap: 2px;
 }
-
-.editing .qf-edit-controls {
+.editing .quick-format-controls {
     display: flex;
 }
-
 .qf-control-btn {
-    width: 24px;
-    height: 24px;
-    font-size: 16px;
+    width: 20px;
+    height: 20px;
+    border: 1px solid #555;
+    background: #333;
+    color: white;
+    font-size: 10px;
+    border-radius: 3px;
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #444;
-    border: 1px solid #666;
-    color: white;
-    border-radius: 3px;
-    cursor: pointer;
 }
 .qf-control-btn.save {
     width: auto;
-    padding: 0 8px;
-    font-size: 11px;
-    font-weight: bold;
+    padding: 0 5px;
     background: #2ea043;
-    border-color: #3fb950;
+    font-weight: bold;
+}
+/* Enhancer Button Colors */
+.qf-btn-white { color: white; }
+.qf-btn-gold { color: #ffd700; }
+.qf-btn-purple { color: #963cff; }
+.qf-btn-green { color: #2ea043; }
+.qf-enhance-btn.generating {
+    background: #ef4444 !important;
+    border-color: #ef4444 !important;
+    color: white !important;
+    animation: pulse 1.5s infinite;
+}
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+/* Free Mode */
+.qf-free-mode-btn {
+    position: fixed;
+    z-index: 800;
+}
+.qf-free-container.editing .qf-free-mode-btn {
+    border: 1px dashed #963cff;
+    cursor: move;
+}
+.qf-free-save-btn {
+    position: fixed;
+    transform: translate(-50%, -50%);
 }
