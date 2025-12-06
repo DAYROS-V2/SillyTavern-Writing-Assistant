@@ -403,6 +403,12 @@ async function loadSettings() {
         }
         $('#qf_api_model').val(settings.apiModel);
     }
+    
+    // Safety check for mobile / offscreen positions
+    if (!settings.x || !settings.y) {
+        updateSetting('x', '50%');
+        updateSetting('y', '85%');
+    }
 
     renderUI(true); // Initial Force Render
 }
@@ -674,11 +680,9 @@ function handleGroupStart(e) {
     startY = clientY;
     
     const rect = container.getBoundingClientRect();
-    container.style.left = (rect.left + rect.width/2) + 'px';
-    container.style.top = (rect.top + rect.height/2) + 'px';
-    
-    initialX = parseFloat(container.style.left);
-    initialY = parseFloat(container.style.top);
+    // Start dragging from current visual position (pixels)
+    initialX = rect.left + rect.width/2;
+    initialY = rect.top + rect.height/2;
 
     document.addEventListener('mousemove', handleGroupMove);
     document.addEventListener('touchmove', handleGroupMove, { passive: false });
@@ -702,8 +706,24 @@ function handleGroupMove(e) {
 function handleGroupEnd() {
     if(isDragging) {
         isDragging = false;
-        extension_settings[extensionName].x = container.style.left;
-        extension_settings[extensionName].y = container.style.top;
+        
+        // Convert to Percentages for responsive layout (mobile rotation)
+        const winW = window.innerWidth;
+        const winH = window.innerHeight;
+        const rect = container.getBoundingClientRect();
+        const cx = rect.left + rect.width/2;
+        const cy = rect.top + rect.height/2;
+        
+        const pctX = (cx / winW) * 100;
+        const pctY = (cy / winH) * 100;
+        
+        extension_settings[extensionName].x = pctX.toFixed(2) + '%';
+        extension_settings[extensionName].y = pctY.toFixed(2) + '%';
+        
+        // Re-apply to ensure styles match saved percentages
+        container.style.left = extension_settings[extensionName].x;
+        container.style.top = extension_settings[extensionName].y;
+        
         saveSettingsDebounced();
         document.removeEventListener('mousemove', handleGroupMove);
         document.removeEventListener('mouseup', handleGroupEnd);
@@ -792,13 +812,27 @@ function handleFreeEnd() {
     if(isDragging && dragTarget) {
         isDragging = false;
         
+        // Convert to percentages
+        const winW = window.innerWidth;
+        const winH = window.innerHeight;
+        const rect = dragTarget.getBoundingClientRect();
+        const cx = rect.left + rect.width/2;
+        const cy = rect.top + rect.height/2;
+        
+        const pctX = (cx / winW) * 100;
+        const pctY = (cy / winH) * 100;
+        
         const id = dragTarget.dataset.id;
         if (!extension_settings[extensionName].freePositions) extension_settings[extensionName].freePositions = {};
         
         extension_settings[extensionName].freePositions[id] = {
-            x: dragTarget.style.left,
-            y: dragTarget.style.top
+            x: pctX.toFixed(2) + '%',
+            y: pctY.toFixed(2) + '%'
         };
+        
+        // Apply percent
+        dragTarget.style.left = extension_settings[extensionName].freePositions[id].x;
+        dragTarget.style.top = extension_settings[extensionName].freePositions[id].y;
         
         saveSettingsDebounced();
         dragTarget = null;
@@ -911,15 +945,18 @@ jQuery(async () => {
     loadSettings();
     
     // Visibility Loop: Hides bar when chat is not main focus
+    // Optimized for Mobile: Falls back to checking if body is active if offsetParent fails
     setInterval(() => {
         const textarea = document.getElementById('send_textarea');
-        const hasTextarea = textarea && textarea.offsetParent !== null; 
+        // Mobile browsers sometimes report offsetParent null improperly when virtual keyboard is up
+        // So we check if the element exists and the body isn't hidden
+        const isVisible = textarea && (textarea.offsetParent !== null || document.body.offsetParent !== null);
         
         if (container) {
-            container.style.display = hasTextarea ? (extension_settings[extensionName].layoutMode === 'vertical' ? 'flex' : 'flex') : 'none';
+            container.style.display = isVisible ? (extension_settings[extensionName].layoutMode === 'vertical' ? 'flex' : 'flex') : 'none';
         }
         if (freeContainer) {
-            freeContainer.style.display = hasTextarea ? 'block' : 'none';
+            freeContainer.style.display = isVisible ? 'block' : 'none';
         }
     }, 500);
 });
