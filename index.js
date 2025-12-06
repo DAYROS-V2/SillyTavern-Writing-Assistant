@@ -59,6 +59,7 @@ let freeContainer = null;
 let isEditing = false;
 let isDragging = false;
 let undoBuffer = null; 
+let preventApplyStyles = false; // Prevent position overrides during manual positioning
 
 // API Control
 let abortController = null;
@@ -465,9 +466,11 @@ function applyStyles() {
     const settings = extension_settings[extensionName];
     
     if (container) {
-        // Always apply position explicitly
-        container.style.left = settings.x;
-        container.style.top = settings.y;
+        // Don't override position if we're manually positioning
+        if (!preventApplyStyles) {
+            container.style.left = settings.x;
+            container.style.top = settings.y;
+        }
         container.style.transform = `translate(-50%, -50%) scale(${settings.scale})`;
         
         // Apply Z-Index (Override if editing)
@@ -713,6 +716,7 @@ function handleGroupMove(e) {
 function handleGroupEnd() {
     if(isDragging) {
         isDragging = false;
+        preventApplyStyles = true; // Prevent applyStyles from overriding our manual position
         
         const winW = window.innerWidth;
         const winH = window.innerHeight;
@@ -737,9 +741,18 @@ function handleGroupEnd() {
         $('#qf_pos_y').val(pctY);
         $('#qf_pos_y_val').text(pctY.toFixed(0) + '%');
 
-        // Apply immediately to DOM to prevent snap-back
-        container.style.left = extension_settings[extensionName].x;
-        container.style.top = extension_settings[extensionName].y;
+        // Force repaint on next frame (critical for mobile)
+        requestAnimationFrame(() => {
+            container.style.left = extension_settings[extensionName].x;
+            container.style.top = extension_settings[extensionName].y;
+            // Force a reflow
+            void container.offsetHeight;
+            
+            // Re-enable applyStyles after a short delay
+            setTimeout(() => {
+                preventApplyStyles = false;
+            }, 100);
+        });
         
         document.removeEventListener('mousemove', handleGroupMove);
         document.removeEventListener('mouseup', handleGroupEnd);
@@ -890,13 +903,41 @@ jQuery(async () => {
     $('#qf_pos_x').on('input', function() {
         const val = $(this).val();
         $('#qf_pos_x_val').text(val + '%');
+        
+        preventApplyStyles = true;
         updateSetting('x', val + '%');
+        
+        if (container) {
+            requestAnimationFrame(() => {
+                container.style.left = val + '%';
+                void container.offsetHeight;
+                
+                setTimeout(() => {
+                    preventApplyStyles = false;
+                }, 100);
+            });
+        }
     });
     
     $('#qf_pos_y').on('input', function() {
         const val = $(this).val();
         $('#qf_pos_y_val').text(val + '%');
+        
+        preventApplyStyles = true; // Prevent override during manual adjustment
         updateSetting('y', val + '%');
+        
+        // Force immediate update on mobile
+        if (container) {
+            requestAnimationFrame(() => {
+                container.style.top = val + '%';
+                void container.offsetHeight; // Force reflow
+                
+                // Re-enable after delay
+                setTimeout(() => {
+                    preventApplyStyles = false;
+                }, 100);
+            });
+        }
     });
 
     $('#qf_z_index').on('input', function() {
