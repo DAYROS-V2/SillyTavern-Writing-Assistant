@@ -1,0 +1,8 @@
+{
+    "display_name": "Quick Formatting",
+    "author": "Dayros",
+    "version": "1.0.1",
+    "description": "Adds a floating, draggable, resizable formatting bar.",
+    "css": "style.css",
+    "js": "index.js"
+}
