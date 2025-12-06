@@ -3,7 +3,7 @@
 
 .quick-format-container {
     position: fixed;
-    z-index: 95; /* Low enough to act as layer above chat but below drawers */
+    z-index: 800; /* High enough to be above mobile bars but below settings drawers (2000+) */
     display: flex;
     gap: 4px;
     padding: 4px;
@@ -14,10 +14,11 @@
     box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     align-items: center;
     transition: box-shadow 0.2s;
+    touch-action: none; /* Prevents scrolling while dragging on mobile */
 }
 
 .quick-format-container.editing {
-    z-index: 20000; /* High z-index for drag-over-everything mode */
+    z-index: 20000; /* Drag-over-everything mode */
     border: 2px dashed var(--SmartThemeAccentColor, #963cff);
     box-shadow: 0 0 15px var(--SmartThemeAccentColor, #963cff);
     cursor: move;
@@ -117,14 +118,15 @@
 .qf-free-container {
     position: fixed;
     top: 0; left: 0; width: 0; height: 0;
-    z-index: 95; /* Low enough to be behind drawers */
+    z-index: 800; /* Mobile safe z-index */
 }
 .qf-free-container.editing {
     z-index: 20000;
 }
 .qf-free-mode-btn {
     position: fixed;
-    z-index: 96;
+    z-index: 801;
+    touch-action: none;
 }
 .qf-free-container.editing .qf-free-mode-btn {
     cursor: move;
