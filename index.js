@@ -2,10 +2,12 @@ import { extension_settings, getContext } from "../../../extensions.js";
 import { saveSettingsDebounced } from "../../../../script.js";
 
 const extensionName = "QuickFormatting";
+
+// DYNAMIC PATH RESOLUTION
 const scriptUrl = import.meta.url;
 const extensionFolderPath = scriptUrl.substring(0, scriptUrl.lastIndexOf('/'));
 
-// --- DEFAULTS ---
+// Default Config
 const defaultSettings = {
     enabled: true,
     layoutMode: 'grouped', 
@@ -18,17 +20,19 @@ const defaultSettings = {
         'btn_code': true
     },
     freePositions: {}, 
-    // AI
+    // Enhancer Settings
     enhancerEnabled: true,
-    btnColor: 'white', 
+    btnColor: 'white', // Default White
     apiProvider: 'openrouter',
     apiBase: 'https://openrouter.ai/api/v1',
+    // Keys per provider
     apiKeyOpenRouter: '',
     apiKeyOpenAI: '',
+    
     apiModel: '',
     contextLimit: 5,
     systemPrompt: 'You are a professional editor. Correct grammar, improve flow, and enhance the prose of the user input. Keep the tone consistent with the roleplay context provided. Do not add commentary, just output the enhanced text.',
-    // Gen Params
+    // Generation Params
     stream: true,
     maxTokens: 0,
     temperature: 1,
@@ -53,17 +57,905 @@ const formattingButtons = [
 let container = null;
 let freeContainer = null;
 let isEditing = false;
-let isGenerating = false;
-let abortController = null;
+let isDragging = false;
 let undoBuffer = null; 
+let preventApplyStyles = false; // Prevent position overrides during manual positioning
 
-// --- DRAG STATE ---
-// We use a simpler, cleaner drag state to prevent mobile issues
-let activeDragEl = null;
-let dragStartCoords = { x: 0, y: 0 };
-let dragStartPos = { x: 0, y: 0 }; // Percentages
+// API Control
+let abortController = null;
+let isGenerating = false;
+let dragTarget = null;
 
-// --- INITIALIZATION ---
+// --- API HELPER ---
+function getActiveKey() {
+    const settings = extension_settings[extensionName];
+    if (settings.apiProvider === 'openai') return settings.apiKeyOpenAI;
+    return settings.apiKeyOpenRouter;
+}
+
+function updateKeyDisplay() {
+    const settings = extension_settings[extensionName];
+    const key = getActiveKey();
+    
+    $('#qf_api_key').val(key || '');
+    if (key) $('#qf_clear_key').show();
+    else $('#qf_clear_key').hide();
+    
+    if (settings.apiProvider === 'openai') {
+        $('#qf_fetch_container').hide();
+        $('#qf_api_base').attr('placeholder', '');
+    } else {
+        $('#qf_fetch_container').show();
+        $('#qf_api_base').attr('placeholder', 'https://openrouter.ai/api/v1');
+    }
+}
+
+async function fetchModels() {
+    const settings = extension_settings[extensionName];
+    const baseUrl = settings.apiBase.replace(/\/$/, '') || 'https://openrouter.ai/api/v1';
+    const key = getActiveKey();
+
+    if (!key) {
+        toastr.error('Please enter an API Key for ' + settings.apiProvider + ' first.');
+        return;
+    }
+
+    const btn = $('#qf_fetch_models');
+    const originalIcon = btn.html();
+    btn.html('<i class="fa-solid fa-spinner fa-spin"></i> Fetching...');
+
+    try {
+        const response = await fetch(`${baseUrl}/models`, {
+            headers: {
+                'Authorization': `Bearer ${key}`,
+                'HTTP-Referer': window.location.origin,
+                'X-Title': 'SillyTavern Quick Format'
+            }
+        });
+
+        if (!response.ok) throw new Error('Failed to fetch models');
+        
+        const data = await response.json();
+        const models = data.data || [];
+        
+        const select = $('#qf_api_model');
+        select.empty();
+        select.append('<option value="" disabled selected>Select a model...</option>');
+        
+        models.sort((a, b) => a.id.localeCompare(b.id)).forEach(m => {
+            select.append(`<option value="${m.id}">${m.name || m.id}</option>`);
+        });
+
+        if (settings.apiModel) {
+            select.val(settings.apiModel);
+        }
+        
+        toastr.success(`Fetched ${models.length} models.`);
+    } catch (e) {
+        console.error(e);
+        toastr.error('Error fetching models. Check console.');
+    } finally {
+        btn.html(originalIcon);
+    }
+}
+
+async function enhanceText() {
+    if (isGenerating && abortController) {
+        abortController.abort();
+        abortController = null;
+        isGenerating = false;
+        updateEnhanceButtonState(false);
+        toastr.info('Enhancement stopped.');
+        return;
+    }
+
+    const textarea = document.getElementById('send_textarea');
+    if (!textarea || !textarea.value.trim()) {
+        toastr.info('Type something to enhance first.');
+        return;
+    }
+
+    const settings = extension_settings[extensionName];
+    const key = getActiveKey();
+    
+    if (!key || !settings.apiModel) {
+        toastr.error('Please configure API Key and Model in settings.');
+        return;
+    }
+
+    undoBuffer = textarea.value;
+    updateUndoButtonState();
+
+    isGenerating = true;
+    abortController = new AbortController();
+    updateEnhanceButtonState(true);
+
+    try {
+        const context = getContext();
+        const history = context.chat || [];
+        const limit = parseInt(settings.contextLimit) || 0;
+        
+        const messages = [
+            { role: 'system', content: settings.systemPrompt }
+        ];
+
+        if (settings.reasoningEffort && !settings.apiModel.includes('o1')) {
+             messages[0].content += `\n\nPlease use ${settings.reasoningEffort} reasoning effort.`;
+        }
+
+        const relevantHistory = history.slice(-limit);
+        relevantHistory.forEach(msg => {
+            messages.push({
+                role: msg.is_user ? 'user' : 'assistant',
+                content: msg.mes 
+            });
+        });
+
+        messages.push({ role: 'user', content: textarea.value });
+
+        const baseUrl = (settings.apiBase && settings.apiBase.trim()) 
+            ? settings.apiBase.replace(/\/$/, '') 
+            : (settings.apiProvider === 'openai' ? 'https://api.openai.com/v1' : 'https://openrouter.ai/api/v1');
+        
+        const payload = {
+            model: settings.apiModel,
+            messages: messages,
+            stream: settings.stream
+        };
+
+        if (settings.maxTokens > 0) payload.max_tokens = parseInt(settings.maxTokens);
+        if (settings.temperature >= 0) payload.temperature = parseFloat(settings.temperature);
+        if (settings.frequencyPenalty !== 0) payload.frequency_penalty = parseFloat(settings.frequencyPenalty);
+        if (settings.presencePenalty !== 0) payload.presence_penalty = parseFloat(settings.presencePenalty);
+        if (settings.repetitionPenalty !== 1) payload.repetition_penalty = parseFloat(settings.repetitionPenalty);
+        if (settings.topP < 1) payload.top_p = parseFloat(settings.topP);
+        if (settings.topK > 0) payload.top_k = parseInt(settings.topK);
+        if (settings.minP > 0) payload.min_p = parseFloat(settings.minP);
+        if (settings.topA > 0) payload.top_a = parseFloat(settings.topA);
+        if (settings.seed !== -1) payload.seed = parseInt(settings.seed);
+
+        if (settings.reasoningEffort && settings.apiModel.includes('o1')) {
+            payload.reasoning_effort = settings.reasoningEffort;
+        }
+
+        console.log('Chat Completion request:', {
+            messages: payload.messages,
+            model: payload.model,
+            temperature: payload.temperature,
+            max_tokens: payload.max_tokens,
+            stream: payload.stream,
+            presence_penalty: payload.presence_penalty,
+            frequency_penalty: payload.frequency_penalty,
+            top_p: payload.top_p,
+            top_k: payload.top_k,
+            seed: payload.seed,
+            reasoning: settings.reasoningEffort ? { effort: settings.reasoningEffort } : undefined
+        });
+
+        const response = await fetch(`${baseUrl}/chat/completions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${key}`,
+                'HTTP-Referer': window.location.origin,
+                'X-Title': 'SillyTavern Quick Format'
+            },
+            body: JSON.stringify(payload),
+            signal: abortController.signal
+        });
+
+        if (!response.ok) {
+            const err = await response.text();
+            throw new Error(err);
+        }
+
+        if (settings.stream) {
+            console.log('Streaming request in progress');
+            textarea.value = ""; 
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+            let buffer = "";
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                const chunk = decoder.decode(value, { stream: true });
+                buffer += chunk;
+                
+                const lines = buffer.split('\n');
+                buffer = lines.pop(); 
+
+                for (const line of lines) {
+                    if (line.trim() === '') continue;
+                    if (line.trim() === 'data: [DONE]') continue;
+                    
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const json = JSON.parse(line.substring(6));
+                            const delta = json.choices[0]?.delta?.content;
+                            if (delta) {
+                                textarea.value += delta;
+                                textarea.scrollTop = textarea.scrollHeight; 
+                                textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                            }
+                        } catch (e) {
+                            // ignore
+                        }
+                    }
+                }
+            }
+            console.log('Streaming request finished');
+        } else {
+            const data = await response.json();
+            const result = data.choices[0]?.message?.content;
+            console.log('Request finished. Response:', result);
+            if (result) {
+                textarea.value = result;
+                textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        }
+
+    } catch (e) {
+        if (e.name !== 'AbortError') {
+            console.error(e);
+            toastr.error('Enhancement failed. See console.');
+        }
+    } finally {
+        isGenerating = false;
+        abortController = null;
+        updateEnhanceButtonState(false);
+    }
+}
+
+function updateEnhanceButtonState(generating) {
+    const btns = document.querySelectorAll('.qf-enhance-btn');
+    btns.forEach(b => {
+        if (generating) {
+            b.innerHTML = '<i class="fa-solid fa-stop"></i>';
+            b.classList.add('generating');
+            b.title = "Stop Generating";
+        } else {
+            b.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i>';
+            b.classList.remove('generating');
+            b.title = "Enhance";
+        }
+    });
+}
+
+function restoreUndo() {
+    if (undoBuffer === null) return;
+    const textarea = document.getElementById('send_textarea');
+    if (textarea) {
+        textarea.value = undoBuffer;
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        undoBuffer = null;
+        updateUndoButtonState();
+        toastr.info('Text restored.');
+    }
+}
+
+function updateUndoButtonState() {
+    const btns = document.querySelectorAll('.qf-undo-btn');
+    btns.forEach(b => {
+        b.style.opacity = undoBuffer ? '1' : '0.3';
+        b.style.cursor = undoBuffer ? 'pointer' : 'default';
+    });
+}
+
+// --- SETTINGS MANAGEMENT ---
+
+async function loadSettings() {
+    extension_settings[extensionName] = extension_settings[extensionName] || {};
+    for (const key in defaultSettings) {
+        if (typeof extension_settings[extensionName][key] === 'undefined') {
+            extension_settings[extensionName][key] = defaultSettings[key];
+        }
+    }
+    const settings = extension_settings[extensionName];
+
+    if (settings.y === '85%') {
+         settings.y = '50%';
+         extension_settings[extensionName].y = '50%';
+         saveSettingsDebounced();
+    }
+
+    $('#qf_global_enabled').prop('checked', settings.enabled);
+    $('#qf_layout_mode').val(settings.layoutMode || 'grouped');
+    
+    formattingButtons.forEach(btn => {
+        if (!settings.hiddenButtons) settings.hiddenButtons = {};
+        const isHidden = settings.hiddenButtons[btn.id] === true;
+        $(`#qf_toggle_${btn.id}`).prop('checked', !isHidden);
+    });
+
+    $('#qf_enhancer_enabled').prop('checked', settings.enhancerEnabled);
+    $('#qf_btn_color').val(settings.btnColor || 'white');
+    
+    // Sliders
+    $('#qf_ui_scale').val(settings.scale || 1.0);
+    $('#qf_ui_scale_val').text(settings.scale || 1.0);
+    
+    $('#qf_pos_x').val(parseFloat(settings.x) || 50);
+    $('#qf_pos_x_val').text((parseFloat(settings.x) || 50) + '%');
+    
+    $('#qf_pos_y').val(parseFloat(settings.y) || 50);
+    $('#qf_pos_y_val').text((parseFloat(settings.y) || 50) + '%');
+
+    $('#qf_z_index').val(settings.zIndex || 800);
+    $('#qf_z_index_val').text(settings.zIndex || 800);
+    
+    $('#qf_api_provider').val(settings.apiProvider);
+    $('#qf_api_base').val(settings.apiBase);
+    
+    updateKeyDisplay(); 
+
+    // Params
+    $('#qf_reasoning_effort').val(settings.reasoningEffort);
+    $('#qf_context_limit').val(settings.contextLimit);
+    $('#qf_system_prompt').val(settings.systemPrompt);
+    $('#qf_stream').prop('checked', settings.stream);
+    $('#qf_max_tokens').val(settings.maxTokens);
+    $('#qf_temp').val(settings.temperature);
+    $('#qf_freq_pen').val(settings.frequencyPenalty);
+    $('#qf_pres_pen').val(settings.presencePenalty);
+    $('#qf_rep_pen').val(settings.repetitionPenalty);
+    $('#qf_top_k').val(settings.topK);
+    $('#qf_top_p').val(settings.topP);
+    $('#qf_min_p').val(settings.minP);
+    $('#qf_top_a').val(settings.topA);
+    $('#qf_seed').val(settings.seed);
+    $('#qf_reasoning_effort').val(settings.reasoningEffort);
+    
+    if(settings.apiModel) {
+        if ($('#qf_api_model option[value="' + settings.apiModel + '"]').length === 0) {
+            $('#qf_api_model').append(new Option(settings.apiModel, settings.apiModel, true, true));
+        }
+        $('#qf_api_model').val(settings.apiModel);
+    }
+    
+    if (!settings.x || !settings.y) {
+        updateSetting('x', '50%');
+        updateSetting('y', '50%');
+    }
+
+    renderUI(true); 
+}
+
+function updateSetting(key, value) {
+    extension_settings[extensionName][key] = value;
+    saveSettingsDebounced();
+    
+    const rebuildRequired = 
+        key === 'layoutMode' || 
+        key === 'enabled' || 
+        key === 'enhancerEnabled';
+
+    if (rebuildRequired) {
+        renderUI(true);
+    } else {
+        applyStyles(); 
+    }
+}
+
+function toggleButtonVisibility(btnId, isVisible) {
+    if (!extension_settings[extensionName].hiddenButtons) {
+        extension_settings[extensionName].hiddenButtons = {};
+    }
+    if (isVisible) delete extension_settings[extensionName].hiddenButtons[btnId];
+    else extension_settings[extensionName].hiddenButtons[btnId] = true;
+    
+    saveSettingsDebounced();
+    renderUI(true);
+}
+
+function adjustScale(delta) {
+    const settings = extension_settings[extensionName];
+    let newScale = (parseFloat(settings.scale) || 1.0) + delta;
+    newScale = Math.max(0.5, Math.min(2.0, newScale));
+    newScale = Math.round(newScale * 10) / 10;
+    
+    $('#qf_ui_scale').val(newScale);
+    $('#qf_ui_scale_val').text(newScale);
+    updateSetting('scale', newScale);
+}
+
+// --- UI RENDERING ---
+
+function applyStyles() {
+    const settings = extension_settings[extensionName];
+    
+    if (container) {
+        // Calculate actual pixel positions from percentages
+        const pctX = parseFloat(settings.x) || 50;
+        const pctY = parseFloat(settings.y) || 50;
+        
+        // Use margin to center instead of transform
+        const leftPx = `${pctX}%`;
+        const topPx = `${pctY}%`;
+        
+        // Don't override position if we're manually positioning
+        if (!preventApplyStyles) {
+            console.log('[QF Mobile Debug] applyStyles setting position to:', leftPx, topPx);
+            container.style.setProperty('left', leftPx, 'important');
+            container.style.setProperty('top', topPx, 'important');
+            container.style.marginLeft = '0';
+            container.style.marginTop = '0';
+        } else {
+            console.log('[QF Mobile Debug] applyStyles blocked by preventApplyStyles flag');
+        }
+        
+        // Only apply scale transform
+        container.style.transform = `scale(${settings.scale})`;
+        container.style.transformOrigin = '0 0'; // Transform from top-left corner
+        
+        // Apply Z-Index (Override if editing)
+        container.style.zIndex = isEditing ? '20000' : (settings.zIndex || 800);
+    }
+    
+    // Update Button Colors
+    const enhanceBtns = document.querySelectorAll('.qf-enhance-btn');
+    enhanceBtns.forEach(btn => {
+        btn.classList.remove('qf-btn-white', 'qf-btn-gold', 'qf-btn-purple', 'qf-btn-green');
+        btn.classList.add('qf-btn-' + (settings.btnColor || 'white'));
+    });
+    
+    if (settings.layoutMode === 'free') {
+        const freeBtns = document.querySelectorAll('.qf-free-mode-btn');
+        freeBtns.forEach(btn => {
+            btn.style.transform = `translate(-50%, -50%) scale(${settings.scale || 1})`;
+            btn.style.zIndex = isEditing ? '20000' : (settings.zIndex || 800);
+        });
+    }
+}
+
+function renderUI(forceRebuild = false) {
+    const settings = extension_settings[extensionName];
+    
+    if (forceRebuild) {
+        if (container) container.remove();
+        if (freeContainer) freeContainer.remove();
+        container = null;
+        freeContainer = null;
+    } else if (container || freeContainer) {
+        applyStyles();
+        return; 
+    }
+
+    if (!settings.enabled || !document.getElementById('send_textarea')) return;
+
+    if (settings.layoutMode === 'free') {
+        renderFree();
+    } else {
+        renderGrouped();
+    }
+    applyStyles();
+}
+
+function insertTag(startTag, endTag) {
+    if (isEditing) return;
+    const textarea = document.getElementById('send_textarea');
+    if (!textarea) return;
+    textarea.focus();
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const fullText = textarea.value;
+    const selectedText = fullText.substring(start, end);
+    const replacement = startTag + selectedText + endTag;
+    
+    if (typeof textarea.setRangeText === 'function') {
+        textarea.setRangeText(replacement, start, end, 'select');
+    } else {
+        textarea.value = fullText.substring(0, start) + replacement + fullText.substring(end);
+    }
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function createBtn(cfg, isFree = false) {
+    const settings = extension_settings[extensionName];
+    const btn = document.createElement('button');
+    btn.className = 'quick-format-btn';
+    btn.dataset.id = cfg.id;
+    
+    if (cfg.icon) btn.innerHTML = cfg.icon;
+    else btn.innerText = cfg.label;
+    
+    btn.title = cfg.title;
+    
+    if (cfg.isEnhance) {
+        const color = settings.btnColor || 'white';
+        btn.classList.add('qf-enhance-btn');
+        if (color === 'purple') btn.classList.add('qf-btn-purple');
+        else if (color === 'green') btn.classList.add('qf-btn-green');
+        else if (color === 'white') btn.classList.add('qf-btn-white');
+    }
+    if (cfg.isUndo) {
+        btn.classList.add('qf-undo-btn');
+    }
+
+    if (!isFree) {
+        btn.onclick = (e) => { 
+            e.preventDefault(); 
+            if(!isEditing) cfg.action(); 
+        };
+    } else {
+        btn.classList.add('qf-free-mode-btn');
+        const pos = settings.freePositions?.[cfg.id] || { x: '50%', y: '50%' };
+        btn.style.left = pos.x;
+        btn.style.top = pos.y;
+        
+        btn.onclick = (e) => {
+            if(!isEditing) { e.preventDefault(); cfg.action(); }
+        };
+        
+        btn.addEventListener('mousedown', (e) => handleFreeStart(e, btn));
+        btn.addEventListener('touchstart', (e) => handleFreeStart(e, btn), { passive: false });
+        btn.addEventListener('dblclick', (e) => {
+            isEditing = !isEditing;
+            toggleEditMode(isEditing);
+            e.stopPropagation();
+        });
+    }
+
+    btn.onmousedown = (e) => { if(isEditing && !isFree) e.stopPropagation(); }; 
+    btn.ontouchstart = (e) => { if(isEditing && !isFree) e.stopPropagation(); };
+
+    return btn;
+}
+
+function createControls(isFree = false) {
+    const controls = document.createElement('div');
+    controls.className = 'quick-format-controls';
+    if(isFree) controls.classList.add('qf-free-save-btn');
+
+    const minusBtn = document.createElement('button');
+    minusBtn.innerText = '-';
+    minusBtn.className = 'qf-control-btn zoom';
+    minusBtn.onclick = (e) => { e.stopPropagation(); adjustScale(-0.1); };
+    controls.appendChild(minusBtn);
+
+    const doneBtn = document.createElement('button');
+    doneBtn.innerText = 'SAVE';
+    doneBtn.className = 'qf-control-btn save';
+    doneBtn.onclick = (e) => { e.stopPropagation(); toggleEditMode(false); };
+    controls.appendChild(doneBtn);
+
+    const plusBtn = document.createElement('button');
+    plusBtn.innerText = '+';
+    plusBtn.className = 'qf-control-btn zoom';
+    plusBtn.onclick = (e) => { e.stopPropagation(); adjustScale(0.1); };
+    controls.appendChild(plusBtn);
+
+    return controls;
+}
+
+function renderGrouped() {
+    const settings = extension_settings[extensionName];
+    container = document.createElement('div');
+    container.id = 'quick-format-bar';
+    container.className = 'quick-format-container';
+    if (settings.layoutMode === 'vertical') {
+        container.classList.add('vertical');
+    }
+    
+    // Set positioning without transform centering
+    container.style.position = 'fixed';
+    container.style.left = settings.x;
+    container.style.top = settings.y;
+    container.style.transform = `scale(${settings.scale})`; // Only scale, no translate
+    container.style.transformOrigin = '0 0'; // Transform from top-left
+    container.style.touchAction = 'none'; // Prevent browser touch gestures
+
+    formattingButtons.forEach(cfg => {
+        if (settings.hiddenButtons[cfg.id]) return;
+        container.appendChild(createBtn({
+            ...cfg,
+            action: () => insertTag(cfg.start, cfg.end)
+        }));
+    });
+
+    if (settings.enhancerEnabled) {
+        const div = document.createElement('div');
+        div.className = 'qf-divider';
+        container.appendChild(div);
+
+        container.appendChild(createBtn({
+            id: 'qf_btn_enhance',
+            icon: '<i class="fa-solid fa-wand-magic-sparkles"></i>',
+            title: 'Enhance',
+            isEnhance: true,
+            action: enhanceText
+        }));
+
+        container.appendChild(createBtn({
+            id: 'qf_btn_undo',
+            icon: '<i class="fa-solid fa-rotate-left"></i>',
+            title: 'Undo',
+            isUndo: true,
+            action: restoreUndo
+        }));
+    }
+
+    container.appendChild(createControls(false));
+    container.addEventListener('dblclick', () => toggleEditMode(true));
+    container.addEventListener('mousedown', handleGroupStart);
+    container.addEventListener('touchstart', handleGroupStart, { passive: false });
+
+    document.body.appendChild(container);
+    if(undoBuffer) updateUndoButtonState();
+}
+
+function toggleEditMode(enabled) {
+    isEditing = enabled;
+    if(container) {
+        if(enabled) container.classList.add('editing');
+        else container.classList.remove('editing');
+        applyStyles(); // Updates z-index for edit mode
+    }
+    if(freeContainer) {
+        if(enabled) freeContainer.classList.add('editing');
+        else freeContainer.classList.remove('editing');
+    }
+}
+
+let startX, startY, initialX, initialY;
+
+function handleGroupStart(e) {
+    if(!isEditing) return;
+    if(e.target.closest('.qf-control-btn')) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    
+    isDragging = true;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    
+    startX = clientX;
+    startY = clientY;
+    
+    console.log('[QF Mobile Debug] Drag started at clientX:', clientX, 'clientY:', clientY);
+    
+    const rect = container.getBoundingClientRect();
+    // Use top-left corner, not center
+    initialX = rect.left;
+    initialY = rect.top;
+    
+    console.log('[QF Mobile Debug] Initial position at X:', initialX, 'Y:', initialY);
+    
+    // Prevent any browser default behaviors
+    if (e.touches) {
+        document.body.style.overflow = 'hidden'; // Prevent scrolling during drag
+    }
+
+    document.addEventListener('mousemove', handleGroupMove);
+    document.addEventListener('touchmove', handleGroupMove, { passive: false });
+    document.addEventListener('mouseup', handleGroupEnd);
+    document.addEventListener('touchend', handleGroupEnd);
+}
+
+function handleGroupMove(e) {
+    if(!isDragging) return;
+    e.preventDefault();
+    e.stopPropagation(); // Stop event bubbling
+    
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    
+    const dx = clientX - startX;
+    const dy = clientY - startY;
+    
+    console.log('[QF Mobile Debug] Moving - dx:', dx, 'dy:', dy, 'clientY:', clientY, 'startY:', startY);
+    
+    const newLeft = (initialX + dx) + 'px';
+    const newTop = (initialY + dy) + 'px';
+    
+    // Use setProperty with !important to force the style
+    container.style.setProperty('left', newLeft, 'important');
+    container.style.setProperty('top', newTop, 'important');
+    
+    console.log('[QF Mobile Debug] Set position to:', newLeft, newTop);
+    
+    // On-screen debug display
+    showDebugInfo(`dx: ${dx.toFixed(0)}, dy: ${dy.toFixed(0)}<br>Top: ${newTop}<br>clientY: ${clientY.toFixed(0)}`);
+}
+
+function showDebugInfo(html) {
+    let debugDiv = document.getElementById('qf-debug-display');
+    if (!debugDiv) {
+        debugDiv = document.createElement('div');
+        debugDiv.id = 'qf-debug-display';
+        debugDiv.style.cssText = 'position: fixed; top: 10px; left: 10px; background: rgba(0,0,0,0.9); color: lime; padding: 10px; font-family: monospace; font-size: 12px; z-index: 99999; border: 2px solid lime; max-width: 300px;';
+        document.body.appendChild(debugDiv);
+    }
+    debugDiv.innerHTML = html;
+}
+
+function handleGroupEnd() {
+    if(isDragging) {
+        isDragging = false;
+        preventApplyStyles = true;
+        
+        // Restore body scrolling
+        document.body.style.overflow = '';
+        
+        const winW = window.innerWidth;
+        const winH = window.innerHeight;
+        const rect = container.getBoundingClientRect();
+        
+        // Use top-left corner instead of center since we're not using translate
+        const pctX = (rect.left / winW) * 100;
+        const pctY = (rect.top / winH) * 100;
+        
+        console.log('[QF Mobile Debug] Drag ended at:', { pctX, pctY, winW, winH, rectLeft: rect.left, rectTop: rect.top });
+        
+        showDebugInfo(`DRAG END<br>X: ${pctX.toFixed(1)}%<br>Y: ${pctY.toFixed(1)}%<br>Saving...`);
+        
+        // Update settings
+        extension_settings[extensionName].x = pctX.toFixed(2) + '%';
+        extension_settings[extensionName].y = pctY.toFixed(2) + '%';
+        
+        console.log('[QF Mobile Debug] Settings updated to:', extension_settings[extensionName].x, extension_settings[extensionName].y);
+        
+        // CRITICAL FIX: Save immediately, don't debounce!
+        if (typeof saveSettingsDebounced === 'function') {
+            saveSettingsDebounced();
+        }
+        
+        // Sync sliders
+        $('#qf_pos_x').val(pctX);
+        $('#qf_pos_x_val').text(pctX.toFixed(0) + '%');
+        $('#qf_pos_y').val(pctY);
+        $('#qf_pos_y_val').text(pctY.toFixed(0) + '%');
+
+        // Keep position locked with multiple frames using !important
+        const finalX = extension_settings[extensionName].x;
+        const finalY = extension_settings[extensionName].y;
+        
+        for (let i = 0; i < 10; i++) {
+            setTimeout(() => {
+                container.style.setProperty('left', finalX, 'important');
+                container.style.setProperty('top', finalY, 'important');
+                console.log('[QF Mobile Debug] Force', i, 'position:', finalX, finalY);
+            }, i * 50);
+        }
+        
+        // Force a reflow
+        void container.offsetHeight;
+        
+        // Re-enable applyStyles after a longer delay
+        setTimeout(() => {
+            preventApplyStyles = false;
+            console.log('[QF Mobile Debug] preventApplyStyles cleared');
+            showDebugInfo(`LOCKED!<br>X: ${pctX.toFixed(1)}%<br>Y: ${pctY.toFixed(1)}%`);
+            
+            setTimeout(() => {
+                const debugDiv = document.getElementById('qf-debug-display');
+                if (debugDiv) debugDiv.remove();
+            }, 2000);
+        }, 600); // Keep locked for 600ms
+        
+        document.removeEventListener('mousemove', handleGroupMove);
+        document.removeEventListener('mouseup', handleGroupEnd);
+        document.removeEventListener('touchmove', handleGroupMove);
+        document.removeEventListener('touchend', handleGroupEnd);
+    }
+}
+
+function renderFree() {
+    const settings = extension_settings[extensionName];
+    freeContainer = document.createElement('div');
+    freeContainer.className = 'qf-free-container';
+    
+    formattingButtons.forEach(cfg => {
+        if (settings.hiddenButtons[cfg.id]) return;
+        freeContainer.appendChild(createBtn({
+            ...cfg,
+            action: () => insertTag(cfg.start, cfg.end)
+        }, true));
+    });
+
+    if (settings.enhancerEnabled) {
+        freeContainer.appendChild(createBtn({
+            id: 'qf_btn_enhance',
+            icon: '<i class="fa-solid fa-wand-magic-sparkles"></i>',
+            title: 'Enhance',
+            isEnhance: true,
+            action: enhanceText
+        }, true));
+
+        freeContainer.appendChild(createBtn({
+            id: 'qf_btn_undo',
+            icon: '<i class="fa-solid fa-rotate-left"></i>',
+            title: 'Undo',
+            isUndo: true,
+            action: restoreUndo
+        }, true));
+    }
+    
+    const controls = createControls(true);
+    controls.style.left = settings.x;
+    controls.style.top = settings.y;
+    controls.style.transform = 'translate(-50%, -50%)'; 
+    freeContainer.appendChild(controls);
+    
+    document.body.appendChild(freeContainer);
+    if(isEditing) freeContainer.classList.add('editing');
+}
+
+function handleFreeStart(e, btn) {
+    if(!isEditing) return;
+    e.stopPropagation();
+    dragTarget = btn;
+    isDragging = true;
+    
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    
+    startX = clientX;
+    startY = clientY;
+    
+    const rect = btn.getBoundingClientRect();
+    initialX = rect.left + rect.width/2;
+    initialY = rect.top + rect.height/2;
+
+    document.addEventListener('mousemove', handleFreeMove);
+    document.addEventListener('touchmove', handleFreeMove, { passive: false });
+    document.addEventListener('mouseup', handleFreeEnd);
+    document.addEventListener('touchend', handleFreeEnd);
+}
+
+function handleFreeMove(e) {
+    if(!isDragging || !dragTarget) return;
+    e.preventDefault();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    
+    const dx = clientX - startX;
+    const dy = clientY - startY;
+    
+    dragTarget.style.left = (initialX + dx) + 'px';
+    dragTarget.style.top = (initialY + dy) + 'px';
+}
+
+function handleFreeEnd() {
+    if(isDragging && dragTarget) {
+        isDragging = false;
+        
+        const winW = window.innerWidth;
+        const winH = window.innerHeight;
+        const rect = dragTarget.getBoundingClientRect();
+        const cx = rect.left + rect.width/2;
+        const cy = rect.top + rect.height/2;
+        
+        const pctX = (cx / winW) * 100;
+        const pctY = (cy / winH) * 100;
+        
+        const id = dragTarget.dataset.id;
+        if (!extension_settings[extensionName].freePositions) extension_settings[extensionName].freePositions = {};
+        
+        const newPos = {
+            x: pctX.toFixed(2) + '%',
+            y: pctY.toFixed(2) + '%'
+        };
+        
+        extension_settings[extensionName].freePositions[id] = newPos;
+        
+        saveSettingsDebounced();
+        
+        // Force update style to percent immediately
+        dragTarget.style.left = newPos.x;
+        dragTarget.style.top = newPos.y;
+        
+        dragTarget = null;
+        
+        document.removeEventListener('mousemove', handleFreeMove);
+        document.removeEventListener('mouseup', handleFreeEnd);
+        document.removeEventListener('touchmove', handleFreeMove);
+        document.removeEventListener('touchend', handleFreeEnd);
+    }
+}
+
 jQuery(async () => {
     try {
         const settingsHtml = await $.get(`${extensionFolderPath}/settings.html`);
@@ -72,159 +964,141 @@ jQuery(async () => {
         console.error('[QuickFormatting] Failed to load settings.html', e);
     }
 
-    loadSettings();
-    initSettingsListeners();
-    renderUI();
-
-    // Visibility Loop
-    setInterval(() => {
-        const textarea = document.getElementById('send_textarea');
-        const isVisible = textarea && (textarea.offsetParent !== null);
-        if (container) container.style.display = isVisible ? 'flex' : 'none';
-        if (freeContainer) freeContainer.style.display = isVisible ? 'block' : 'none';
-    }, 500);
-});
-
-// --- SETTINGS MANAGEMENT ---
-function loadSettings() {
-    extension_settings[extensionName] = extension_settings[extensionName] || {};
-    // Merge defaults
-    for (const key in defaultSettings) {
-        if (typeof extension_settings[extensionName][key] === 'undefined') {
-            extension_settings[extensionName][key] = defaultSettings[key];
-        }
-    }
-    // Migration: Fix old positions
-    if (extension_settings[extensionName].y === '85%') {
-        extension_settings[extensionName].y = '50%';
-        saveSettingsDebounced();
-    }
-    syncSettingsToUI();
-}
-
-function updateSetting(key, value) {
-    extension_settings[extensionName][key] = value;
-    saveSettingsDebounced();
-    
-    // Critical Re-renders
-    if (['layoutMode', 'enabled', 'enhancerEnabled'].includes(key)) {
-        renderUI(true);
-    } else {
-        applyStyles(); // Live update for cosmetic changes
-    }
-}
-
-function syncSettingsToUI() {
-    const s = extension_settings[extensionName];
-    $('#qf_global_enabled').prop('checked', s.enabled);
-    $('#qf_layout_mode').val(s.layoutMode);
-    
-    // Buttons
-    $('#qf_buttons_container').empty();
+    const buttonList = $('#qf_buttons_container');
     formattingButtons.forEach(btn => {
-        $('#qf_buttons_container').append(`
+        buttonList.append(`
             <label class="checkbox_label">
-                <input id="qf_toggle_${btn.id}" type="checkbox" ${!s.hiddenButtons[btn.id] ? 'checked' : ''} />
+                <input id="qf_toggle_${btn.id}" type="checkbox" checked />
                 <span>${btn.label} <small>(${btn.title})</small></span>
             </label>
         `);
         $(document).on('change', `#qf_toggle_${btn.id}`, function() {
-            if (!s.hiddenButtons) s.hiddenButtons = {};
-            if ($(this).prop('checked')) delete s.hiddenButtons[btn.id];
-            else s.hiddenButtons[btn.id] = true;
-            saveSettingsDebounced();
-            renderUI(true);
+            toggleButtonVisibility(btn.id, $(this).prop('checked'));
         });
     });
 
-    $('#qf_enhancer_enabled').prop('checked', s.enhancerEnabled);
-    $('#qf_btn_color').val(s.btnColor);
-    
-    // Sliders
-    $('#qf_pos_x').val(parseFloat(s.x) || 50); $('#qf_pos_x_val').text(s.x);
-    $('#qf_pos_y').val(parseFloat(s.y) || 50); $('#qf_pos_y_val').text(s.y);
-    $('#qf_z_index').val(s.zIndex); $('#qf_z_index_val').text(s.zIndex);
-    $('#qf_ui_scale').val(s.scale); $('#qf_ui_scale_val').text(s.scale);
-    
-    // AI
-    $('#qf_api_provider').val(s.apiProvider);
-    $('#qf_api_base').val(s.apiBase);
-    updateKeyDisplay();
-    
-    $('#qf_stream').prop('checked', s.stream);
-    $('#qf_system_prompt').val(s.systemPrompt);
-    $('#qf_context_limit').val(s.contextLimit);
-    $('#qf_max_tokens').val(s.maxTokens);
-    
-    // Params
-    $('#qf_temp').val(s.temperature);
-    $('#qf_freq_pen').val(s.frequencyPenalty);
-    $('#qf_pres_pen').val(s.presencePenalty);
-    $('#qf_rep_pen').val(s.repetitionPenalty);
-    $('#qf_top_k').val(s.topK);
-    $('#qf_top_p').val(s.topP);
-    $('#qf_min_p').val(s.minP);
-    $('#qf_top_a').val(s.topA);
-    $('#qf_seed').val(s.seed);
-    $('#qf_reasoning_effort').val(s.reasoningEffort);
-
-    if(s.apiModel) {
-        if ($('#qf_api_model option[value="' + s.apiModel + '"]').length === 0) {
-            $('#qf_api_model').append(new Option(s.apiModel, s.apiModel, true, true));
-        }
-        $('#qf_api_model').val(s.apiModel);
-    }
-}
-
-function initSettingsListeners() {
     $('#qf_global_enabled').on('change', function() { updateSetting('enabled', $(this).prop('checked')); });
     $('#qf_layout_mode').on('change', function() { updateSetting('layoutMode', $(this).val()); });
     
-    // Direct Slider Binding
-    $('#qf_pos_x').on('input', function() { 
-        const v = $(this).val(); $('#qf_pos_x_val').text(v + '%'); updateSetting('x', v + '%'); 
+    // Position Sliders
+    $('#qf_pos_x').on('input', function() {
+        const val = $(this).val();
+        $('#qf_pos_x_val').text(val + '%');
+        
+        preventApplyStyles = true;
+        updateSetting('x', val + '%');
+        
+        if (container) {
+            requestAnimationFrame(() => {
+                container.style.left = val + '%';
+                void container.offsetHeight;
+                
+                setTimeout(() => {
+                    preventApplyStyles = false;
+                }, 100);
+            });
+        }
     });
-    $('#qf_pos_y').on('input', function() { 
-        const v = $(this).val(); $('#qf_pos_y_val').text(v + '%'); updateSetting('y', v + '%'); 
-    });
-    $('#qf_z_index').on('input', function() { 
-        const v = $(this).val(); $('#qf_z_index_val').text(v); updateSetting('zIndex', v); 
-    });
-    $('#qf_ui_scale').on('input', function() { 
-        const v = $(this).val(); $('#qf_ui_scale_val').text(v); updateSetting('scale', v); 
+    
+    $('#qf_pos_y').on('input', function() {
+        const val = $(this).val();
+        $('#qf_pos_y_val').text(val + '%');
+        
+        preventApplyStyles = true; // Prevent override during manual adjustment
+        updateSetting('y', val + '%');
+        
+        // Force immediate update on mobile
+        if (container) {
+            requestAnimationFrame(() => {
+                container.style.top = val + '%';
+                void container.offsetHeight; // Force reflow
+                
+                // Re-enable after delay
+                setTimeout(() => {
+                    preventApplyStyles = false;
+                }, 100);
+            });
+        }
     });
 
-    $('#qf_reset_pos').on('click', resetPosition);
+    $('#qf_z_index').on('input', function() {
+        const val = $(this).val();
+        $('#qf_z_index_val').text(val);
+        updateSetting('zIndex', val);
+    });
+
+    $('#qf_reset_pos').on('click', function() {
+        // Reset Logic
+        updateSetting('x', '50%');
+        updateSetting('y', '50%');
+        updateSetting('scale', 1.0);
+        updateSetting('zIndex', 800);
+        updateSetting('freePositions', {});
+        
+        // Reset Slider UI
+        $('#qf_pos_x').val(50); $('#qf_pos_x_val').text('50%');
+        $('#qf_pos_y').val(50); $('#qf_pos_y_val').text('50%');
+        $('#qf_ui_scale').val(1.0); $('#qf_ui_scale_val').text('1.0');
+        $('#qf_z_index').val(800); $('#qf_z_index_val').text('800');
+
+        // Force immediate rebuild
+        renderUI(true);
+        
+        toastr.info('Position & Size reset.');
+    });
 
     $('#qf_enhancer_enabled').on('change', function() { updateSetting('enhancerEnabled', $(this).prop('checked')); });
     $('#qf_btn_color').on('change', function() { updateSetting('btnColor', $(this).val()); });
     
-    // AI Listeners
-    $('#qf_api_provider').on('change', function() {
-        updateSetting('apiProvider', $(this).val());
-        updateKeyDisplay();
-    });
-    $('#qf_api_key').on('change', function() {
-        const s = extension_settings[extensionName];
-        if(s.apiProvider === 'openai') updateSetting('apiKeyOpenAI', $(this).val());
-        else updateSetting('apiKeyOpenRouter', $(this).val());
-        updateKeyDisplay();
-    });
-    $('#qf_clear_key').on('click', function() {
-        const s = extension_settings[extensionName];
-        if(s.apiProvider === 'openai') updateSetting('apiKeyOpenAI', '');
-        else updateSetting('apiKeyOpenRouter', '');
-        updateKeyDisplay();
+    $('#qf_ui_scale').on('input', function() { 
+        $('#qf_ui_scale_val').text($(this).val());
+        updateSetting('scale', $(this).val());
     });
     
+    $('#qf_api_provider').on('change', function() { 
+        const newProvider = $(this).val();
+        updateSetting('apiProvider', newProvider);
+        
+        // Handle Base URL Defaults
+        const currentBase = $('#qf_api_base').val();
+        if (newProvider === 'openai') {
+            if (currentBase === 'https://openrouter.ai/api/v1') {
+                updateSetting('apiBase', '');
+                $('#qf_api_base').val('');
+            }
+        } else {
+            if (!currentBase) {
+                updateSetting('apiBase', 'https://openrouter.ai/api/v1');
+                $('#qf_api_base').val('https://openrouter.ai/api/v1');
+            }
+        }
+        updateKeyDisplay();
+    });
     $('#qf_api_base').on('change', function() { updateSetting('apiBase', $(this).val()); });
-    $('#qf_api_model').on('change', function() { updateSetting('apiModel', $(this).val()); });
-    $('#qf_stream').on('change', function() { updateSetting('stream', $(this).prop('checked')); });
-    $('#qf_fetch_models').on('click', fetchModels);
     
-    // Params
-    $('#qf_system_prompt').on('input', function() { updateSetting('systemPrompt', $(this).val()); });
+    $('#qf_api_key').on('change', function() { 
+        const val = $(this).val();
+        const settings = extension_settings[extensionName];
+        const isOA = settings.apiProvider === 'openai';
+        updateSetting(isOA ? 'apiKeyOpenAI' : 'apiKeyOpenRouter', val);
+        if (val) $('#qf_clear_key').show();
+        else $('#qf_clear_key').hide();
+    });
+
+    $('#qf_clear_key').on('click', function() {
+        const settings = extension_settings[extensionName];
+        const isOA = settings.apiProvider === 'openai';
+        updateSetting(isOA ? 'apiKeyOpenAI' : 'apiKeyOpenRouter', '');
+        $('#qf_api_key').val('');
+        $(this).hide();
+        toastr.info('API Key cleared for ' + settings.apiProvider);
+    });
+
+    $('#qf_api_model').on('change', function() { updateSetting('apiModel', $(this).val()); });
     $('#qf_context_limit').on('change', function() { updateSetting('contextLimit', $(this).val()); });
+    $('#qf_system_prompt').on('input', function() { updateSetting('systemPrompt', $(this).val()); });
+    
+    $('#qf_stream').on('change', function() { updateSetting('stream', $(this).prop('checked')); });
     $('#qf_max_tokens').on('change', function() { updateSetting('maxTokens', $(this).val()); });
     $('#qf_temp').on('change', function() { updateSetting('temperature', $(this).val()); });
     $('#qf_freq_pen').on('change', function() { updateSetting('frequencyPenalty', $(this).val()); });
@@ -236,561 +1110,20 @@ function initSettingsListeners() {
     $('#qf_top_a').on('change', function() { updateSetting('topA', $(this).val()); });
     $('#qf_seed').on('change', function() { updateSetting('seed', $(this).val()); });
     $('#qf_reasoning_effort').on('change', function() { updateSetting('reasoningEffort', $(this).val()); });
-}
 
-function resetPosition() {
-    updateSetting('x', '50%');
-    updateSetting('y', '50%');
-    updateSetting('scale', 1.0);
-    updateSetting('zIndex', 800);
-    updateSetting('freePositions', {});
-    
-    // Update UI Sliders
-    $('#qf_pos_x').val(50); $('#qf_pos_x_val').text('50%');
-    $('#qf_pos_y').val(50); $('#qf_pos_y_val').text('50%');
-    $('#qf_ui_scale').val(1.0); $('#qf_ui_scale_val').text('1.0');
-    $('#qf_z_index').val(800); $('#qf_z_index_val').text('800');
-    
-    // FORCE DOM RESET
-    if(container) {
-        container.style.cssText = ''; // Nuke existing styles
-        container.classList.remove('editing');
-        isEditing = false;
-        applyStyles(); // Re-apply default settings
-    }
-    if(freeContainer) {
-        freeContainer.querySelectorAll('.qf-free-mode-btn').forEach(btn => btn.style.cssText = '');
-        applyStyles();
-    }
-    toastr.info('Position Reset');
-}
+    $('#qf_fetch_models').on('click', fetchModels);
 
-function updateKeyDisplay() {
-    const s = extension_settings[extensionName];
-    const isOA = s.apiProvider === 'openai';
+    loadSettings();
     
-    // Swap Key Input
-    const key = isOA ? s.apiKeyOpenAI : s.apiKeyOpenRouter;
-    $('#qf_api_key').val(key || '');
-    $('#qf_clear_key').toggle(!!key);
-    
-    // Swap Fetch Button / Base URL Logic
-    $('#qf_fetch_container').toggle(!isOA);
-    
-    // Base URL Logic
-    if(isOA) {
-         // If it's the default OpenRouter URL, clear it for OpenAI
-         if(s.apiBase === 'https://openrouter.ai/api/v1') {
-             updateSetting('apiBase', '');
-             $('#qf_api_base').val('');
-         }
-    } else {
-        // If empty, set to OpenRouter default
-        if(!s.apiBase) {
-             const def = 'https://openrouter.ai/api/v1';
-             updateSetting('apiBase', def);
-             $('#qf_api_base').val(def);
+    setInterval(() => {
+        const textarea = document.getElementById('send_textarea');
+        const isVisible = textarea && (textarea.offsetParent !== null || document.body.offsetParent !== null);
+        
+        if (container) {
+            container.style.display = isVisible ? 'flex' : 'none';
         }
-    }
-}
-
-async function fetchModels() {
-    const s = extension_settings[extensionName];
-    const key = s.apiKeyOpenRouter;
-    if(!key) { toastr.error('OpenRouter API Key required'); return; }
-    
-    const btn = $('#qf_fetch_models');
-    btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Fetching...');
-    
-    try {
-        const req = await fetch('https://openrouter.ai/api/v1/models');
-        const data = await req.json();
-        const models = data.data.map(m => m.id).sort();
-        
-        $('#qf_api_model').empty().append(new Option('Select...', '', true, true));
-        models.forEach(m => {
-            $('#qf_api_model').append(new Option(m, m));
-        });
-        toastr.success(`Fetched ${models.length} models`);
-    } catch(e) {
-        toastr.error('Failed to fetch models');
-        console.error(e);
-    } finally {
-        btn.prop('disabled', false).html('<i class="fa-solid fa-sync"></i> Fetch Models');
-    }
-}
-
-
-// --- RENDER LOGIC ---
-
-function applyStyles() {
-    const s = extension_settings[extensionName];
-    if (container) {
-        // Grouped Mode
-        container.style.position = 'fixed';
-        container.style.left = s.x;
-        container.style.top = s.y;
-        container.style.zIndex = isEditing ? '20000' : s.zIndex;
-        container.style.transform = 'translate(-50%, -50%) scale(' + s.scale + ')';
-        
-        // Update Buttons
-        const color = s.btnColor || 'white';
-        $('.qf-enhance-btn').removeClass('qf-btn-white qf-btn-gold qf-btn-purple qf-btn-green').addClass('qf-btn-' + color);
-    }
-    
-    if (freeContainer) {
-        // Free Mode Controls
-        const ctrl = freeContainer.querySelector('.qf-free-controls');
-        if(ctrl) {
-            ctrl.style.left = s.x;
-            ctrl.style.top = s.y;
-            ctrl.style.transform = 'translate(-50%, -50%)';
+        if (freeContainer) {
+            freeContainer.style.display = isVisible ? 'block' : 'none';
         }
-        
-        // Update Individual Buttons
-        const btns = freeContainer.querySelectorAll('.qf-free-mode-btn');
-        btns.forEach(b => {
-            const id = b.dataset.id;
-            const pos = s.freePositions?.[id] || {x: '50%', y: '50%'};
-            b.style.left = pos.x;
-            b.style.top = pos.y;
-            b.style.transform = 'translate(-50%, -50%) scale(' + s.scale + ')';
-            b.style.zIndex = isEditing ? '20000' : s.zIndex;
-        });
-    }
-}
-
-function renderUI(force = false) {
-    if (force) {
-        if(container) container.remove();
-        if(freeContainer) freeContainer.remove();
-        container = null; freeContainer = null;
-    }
-    const s = extension_settings[extensionName];
-    if (!s.enabled) return;
-    
-    // Check if chat is ready (simple check)
-    if (!document.getElementById('send_textarea')) return;
-
-    if (s.layoutMode === 'free') {
-        if (!freeContainer) createFreeUI();
-    } else {
-        if (!container) createGroupedUI();
-    }
-    applyStyles();
-}
-
-function createGroupedUI() {
-    container = document.createElement('div');
-    container.className = 'quick-format-container';
-    if(extension_settings[extensionName].layoutMode === 'vertical') container.classList.add('vertical');
-    
-    const s = extension_settings[extensionName];
-    
-    // Add Buttons
-    formattingButtons.forEach(b => {
-        if(!s.hiddenButtons[b.id]) container.appendChild(createBtn(b));
-    });
-
-    if(s.enhancerEnabled) {
-        const div = document.createElement('div');
-        div.className = 'qf-divider';
-        container.appendChild(div);
-        container.appendChild(createBtn({id: 'enhancer', icon: '<i class="fa-solid fa-wand-magic-sparkles"></i>', title: 'Enhance', action: enhanceText, isEnhance: true}));
-        container.appendChild(createBtn({id: 'undo', icon: '<i class="fa-solid fa-rotate-left"></i>', title: 'Undo', action: restoreUndo, isUndo: true}));
-    }
-
-    // Edit Controls
-    const controls = createEditControls();
-    container.appendChild(controls);
-
-    // Event Listeners for Drag
-    container.addEventListener('dblclick', () => toggleEdit(true));
-    addDragListeners(container);
-
-    document.body.appendChild(container);
-    if(undoBuffer) updateUndoButtonState();
-}
-
-function createFreeUI() {
-    freeContainer = document.createElement('div');
-    freeContainer.className = 'qf-free-wrapper';
-    const s = extension_settings[extensionName];
-
-    // Buttons
-    formattingButtons.forEach(b => {
-        if(!s.hiddenButtons[b.id]) freeContainer.appendChild(createBtn(b, true));
-    });
-    
-    if(s.enhancerEnabled) {
-        freeContainer.appendChild(createBtn({id: 'enhancer', icon: '<i class="fa-solid fa-wand-magic-sparkles"></i>', title: 'Enhance', action: enhanceText, isEnhance: true}, true));
-        freeContainer.appendChild(createBtn({id: 'undo', icon: '<i class="fa-solid fa-rotate-left"></i>', title: 'Undo', action: restoreUndo, isUndo: true}, true));
-    }
-
-    // Central Save Button (Anchor)
-    const controls = document.createElement('div');
-    controls.className = 'qf-free-controls';
-    
-    const saveBtn = document.createElement('button');
-    saveBtn.className = 'qf-control-btn save';
-    saveBtn.innerText = 'SAVE';
-    saveBtn.onclick = () => toggleEdit(false);
-    controls.appendChild(saveBtn);
-
-    // Zoom btns
-    const minus = document.createElement('button'); minus.innerText = '-'; minus.className = 'qf-control-btn zoom'; 
-    minus.onclick = () => updateSetting('scale', Math.max(0.5, (s.scale - 0.1).toFixed(1)));
-    controls.appendChild(minus);
-
-    const plus = document.createElement('button'); plus.innerText = '+'; plus.className = 'qf-control-btn zoom';
-    plus.onclick = () => updateSetting('scale', Math.min(2.0, (s.scale + 0.1).toFixed(1)));
-    controls.appendChild(plus);
-
-    freeContainer.appendChild(controls);
-    document.body.appendChild(freeContainer);
-    
-    if(isEditing) toggleEdit(true); // Re-apply state
-}
-
-function createBtn(cfg, isFree = false) {
-    const btn = document.createElement('button');
-    btn.className = 'quick-format-btn';
-    if (cfg.isEnhance) btn.classList.add('qf-enhance-btn');
-    if (cfg.isUndo) btn.classList.add('qf-undo-btn');
-    if (isFree) {
-        btn.classList.add('qf-free-mode-btn');
-        btn.dataset.id = cfg.id;
-        addDragListeners(btn, true); // Individual drag
-        btn.addEventListener('dblclick', (e) => { e.stopPropagation(); toggleEdit(!isEditing); });
-    }
-
-    if (cfg.icon) btn.innerHTML = cfg.icon;
-    else btn.innerText = cfg.label;
-    btn.title = cfg.title;
-    
-    if(cfg.action) btn.onclick = cfg.action;
-    else btn.onclick = () => insertText(cfg.start, cfg.end);
-    
-    // Prevent focus stealing
-    btn.onmousedown = (e) => e.preventDefault();
-    
-    return btn;
-}
-
-function createEditControls() {
-    const div = document.createElement('div');
-    div.className = 'qf-edit-controls';
-    
-    const minus = document.createElement('button'); minus.innerText = '-'; minus.className = 'qf-control-btn'; 
-    minus.onclick = () => updateSetting('scale', Math.max(0.5, (extension_settings[extensionName].scale - 0.1).toFixed(1)));
-    div.appendChild(minus);
-
-    const save = document.createElement('button'); save.innerText = 'SAVE'; save.className = 'qf-control-btn save';
-    save.onclick = (e) => { e.stopPropagation(); toggleEdit(false); };
-    div.appendChild(save);
-
-    const plus = document.createElement('button'); plus.innerText = '+'; plus.className = 'qf-control-btn';
-    plus.onclick = () => updateSetting('scale', Math.min(2.0, (extension_settings[extensionName].scale + 0.1).toFixed(1)));
-    div.appendChild(plus);
-
-    return div;
-}
-
-// --- DRAG LOGIC (ROBUST MOBILE) ---
-
-function addDragListeners(el, isFree = false) {
-    // Mouse
-    el.addEventListener('mousedown', (e) => handleDragStart(e, el, isFree));
-    // Touch
-    el.addEventListener('touchstart', (e) => handleDragStart(e, el, isFree), { passive: false });
-}
-
-function handleDragStart(e, el, isFree) {
-    if (!isEditing) return;
-    if (e.target.tagName === 'BUTTON' && !el.classList.contains('quick-format-container')) return; 
-    
-    e.preventDefault();
-    e.stopPropagation();
-
-    activeDragEl = el;
-    
-    // Get start coordinates
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    
-    dragStartCoords = { x: clientX, y: clientY };
-    
-    // Get current position (parsed from style or computed)
-    const rect = el.getBoundingClientRect();
-    const parentW = window.innerWidth;
-    const parentH = window.innerHeight;
-    
-    // We calculate the center point percentage
-    const centerX = rect.left + (rect.width / 2);
-    const centerY = rect.top + (rect.height / 2);
-    
-    dragStartPos = {
-        x: (centerX / parentW) * 100,
-        y: (centerY / parentH) * 100
-    };
-
-    // Attach global listeners
-    document.addEventListener('mousemove', handleDragMove);
-    document.addEventListener('touchmove', handleDragMove, { passive: false });
-    document.addEventListener('mouseup', handleDragEnd);
-    document.addEventListener('touchend', handleDragEnd);
-}
-
-function handleDragMove(e) {
-    if (!activeDragEl) return;
-    e.preventDefault();
-
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-
-    const dx = clientX - dragStartCoords.x;
-    const dy = clientY - dragStartCoords.y;
-
-    // Convert delta pixels to delta percentage
-    const dPctX = (dx / window.innerWidth) * 100;
-    const dPctY = (dy / window.innerHeight) * 100;
-
-    const newX = dragStartPos.x + dPctX;
-    const newY = dragStartPos.y + dPctY;
-
-    // Apply IMMEDIATELY to DOM (Synchronous) - No Saving yet
-    activeDragEl.style.left = newX + '%';
-    activeDragEl.style.top = newY + '%';
-}
-
-function handleDragEnd(e) {
-    if (!activeDragEl) return;
-    
-    // Finalize position
-    const finalLeft = activeDragEl.style.left;
-    const finalTop = activeDragEl.style.top;
-    
-    // Save to settings
-    const s = extension_settings[extensionName];
-    if (activeDragEl.classList.contains('qf-free-mode-btn')) {
-        const id = activeDragEl.dataset.id;
-        if (!s.freePositions) s.freePositions = {};
-        s.freePositions[id] = { x: finalLeft, y: finalTop };
-        updateSetting('freePositions', s.freePositions);
-    } else {
-        // Main Container
-        updateSetting('x', finalLeft);
-        updateSetting('y', finalTop);
-        
-        // Update sliders if open
-        $('#qf_pos_x').val(parseFloat(finalLeft)); $('#qf_pos_x_val').text(finalLeft);
-        $('#qf_pos_y').val(parseFloat(finalTop)); $('#qf_pos_y_val').text(finalTop);
-    }
-
-    // Cleanup
-    activeDragEl = null;
-    document.removeEventListener('mousemove', handleDragMove);
-    document.removeEventListener('touchmove', handleDragMove);
-    document.removeEventListener('mouseup', handleDragEnd);
-    document.removeEventListener('touchend', handleDragEnd);
-}
-
-
-// --- ACTIONS ---
-
-function toggleEdit(val) {
-    isEditing = val;
-    if (container) {
-        if (val) container.classList.add('editing');
-        else container.classList.remove('editing');
-    }
-    if (freeContainer) {
-        const btns = freeContainer.querySelectorAll('.qf-free-mode-btn');
-        btns.forEach(b => b.style.zIndex = val ? '20000' : extension_settings[extensionName].zIndex);
-        
-        const ctrl = freeContainer.querySelector('.qf-free-controls');
-        if(ctrl) ctrl.style.display = val ? 'flex' : 'none';
-    }
-    applyStyles(); // Updates z-indices
-}
-
-function insertText(start, end) {
-    const textarea = document.getElementById('send_textarea');
-    if (!textarea) return;
-
-    const s = textarea.selectionStart;
-    const e = textarea.selectionEnd;
-    const val = textarea.value;
-    const selected = val.substring(s, e);
-
-    textarea.value = val.substring(0, s) + start + selected + end + val.substring(e);
-    textarea.selectionStart = s + start.length;
-    textarea.selectionEnd = e + start.length;
-    textarea.focus();
-    
-    textarea.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
-async function enhanceText() {
-    if (isGenerating) {
-        if (abortController) abortController.abort();
-        isGenerating = false;
-        renderGeneratingState(false);
-        toastr.info('Generation Stopped');
-        return;
-    }
-
-    const textarea = document.getElementById('send_textarea');
-    const text = textarea ? textarea.value.trim() : '';
-    
-    if (!text) { toastr.warning('No text to enhance'); return; }
-    
-    undoBuffer = text;
-    updateUndoButtonState();
-    
-    const s = extension_settings[extensionName];
-    const key = s.apiProvider === 'openai' ? s.apiKeyOpenAI : s.apiKeyOpenRouter;
-    
-    if (!key) { toastr.error('API Key Missing'); return; }
-    
-    renderGeneratingState(true);
-    isGenerating = true;
-    abortController = new AbortController();
-
-    try {
-        const context = getContext(); 
-        const history = [];
-        
-        // Build Context
-        if (s.contextLimit > 0 && context.chat && context.chat.length) {
-            const limit = parseInt(s.contextLimit);
-            const slice = context.chat.slice(-limit);
-            slice.forEach(msg => {
-                history.push({ 
-                    role: msg.is_user ? 'user' : 'assistant', 
-                    content: msg.mes 
-                });
-            });
-        }
-
-        const messages = [
-            { role: "system", content: s.systemPrompt },
-            ...history,
-            { role: "user", content: text } // Current input
-        ];
-
-        const payload = {
-            model: s.apiModel || 'gpt-3.5-turbo',
-            messages: messages,
-            stream: s.stream,
-            temperature: parseFloat(s.temperature),
-            max_tokens: parseInt(s.maxTokens) || undefined,
-            frequency_penalty: parseFloat(s.frequencyPenalty),
-            presence_penalty: parseFloat(s.presencePenalty),
-            top_p: parseFloat(s.topP),
-        };
-        
-        // Add optional params only if non-default/supported
-        if(s.seed !== -1) payload.seed = parseInt(s.seed);
-        if(s.reasoningEffort) payload.reasoning_effort = s.reasoningEffort;
-        // Non-standard params (OpenRouter)
-        if(parseFloat(s.topK) > 0) payload.top_k = parseFloat(s.topK);
-        if(parseFloat(s.minP) > 0) payload.min_p = parseFloat(s.minP);
-        if(parseFloat(s.topA) > 0) payload.top_a = parseFloat(s.topA);
-        if(parseFloat(s.repetitionPenalty) !== 1) payload.repetition_penalty = parseFloat(s.repetitionPenalty);
-
-        console.log('--- QuickFormat Spell Check Request ---');
-        console.log(payload);
-
-        const response = await fetch(`${s.apiBase}/chat/completions`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${key}`,
-                'HTTP-Referer': 'http://localhost:8000',
-                'X-Title': 'SillyTavern QuickFormat'
-            },
-            body: JSON.stringify(payload),
-            signal: abortController.signal
-        });
-
-        if (!response.ok) throw new Error(`API Error: ${response.status}`);
-
-        if (s.stream) {
-            textarea.value = ''; // Clear for stream
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n');
-                
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const jsonStr = line.slice(6);
-                        if (jsonStr === '[DONE]') break;
-                        try {
-                            const json = JSON.parse(jsonStr);
-                            const content = json.choices[0]?.delta?.content || '';
-                            if (content) {
-                                textarea.value += content;
-                                textarea.scrollTop = textarea.scrollHeight;
-                            }
-                        } catch (e) {}
-                    }
-                }
-            }
-        } else {
-            const data = await response.json();
-            const result = data.choices[0]?.message?.content;
-            if (result) textarea.value = result;
-        }
-        
-        // Trigger input event for resizing
-        textarea.dispatchEvent(new Event('input', { bubbles: true }));
-
-    } catch (e) {
-        if (e.name !== 'AbortError') {
-            toastr.error('Generation Failed: ' + e.message);
-            console.error(e);
-        }
-    } finally {
-        isGenerating = false;
-        renderGeneratingState(false);
-    }
-}
-
-function renderGeneratingState(active) {
-    const icon = active ? '<i class="fa-solid fa-square"></i>' : '<i class="fa-solid fa-wand-magic-sparkles"></i>';
-    const title = active ? 'Stop Generation' : 'Enhance';
-    
-    // Update all enhance buttons (free or grouped)
-    document.querySelectorAll('.qf-enhance-btn').forEach(btn => {
-        btn.innerHTML = icon;
-        btn.title = title;
-        if(active) btn.classList.add('qf-btn-white'); // Force white for stop
-        else applyStyles(); // Revert to user color
-    });
-}
-
-function restoreUndo() {
-    if (!undoBuffer) return;
-    const textarea = document.getElementById('send_textarea');
-    if (textarea) {
-        textarea.value = undoBuffer;
-        textarea.dispatchEvent(new Event('input', { bubbles: true }));
-        undoBuffer = null;
-        updateUndoButtonState();
-        toastr.success('Text Restored');
-    }
-}
-
-function updateUndoButtonState() {
-    const btns = document.querySelectorAll('.qf-undo-btn');
-    btns.forEach(b => {
-        b.style.opacity = undoBuffer ? '1' : '0.3';
-        b.style.cursor = undoBuffer ? 'pointer' : 'default';
-    });
-}
+    }, 500);
+});
