@@ -1,85 +1,165 @@
-/* style.css */
+
+/* Quick Formatting Extension Styles */
+
 .quick-format-container {
-    display: flex;
-    gap: 5px;
-    padding: 6px;
-    
-    /* Fixed positioning to float above everything */
     position: fixed;
-    z-index: 20000; /* Extremely high Z-index to be on top of everything */
-    
-    background-color: var(--smart-theme-bg, #1a1b1e);
-    border: 1px solid var(--smart-theme-border, #454545);
-    border-radius: 8px;
+    z-index: 95; /* Low enough to act as layer above chat but below drawers */
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 6px;
+    background-color: var(--SmartThemeBlurTintColor, rgba(0, 0, 0, 0.8));
+    backdrop-filter: blur(5px);
+    border: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.2));
     box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-    
     align-items: center;
-    transform-origin: center center;
-    user-select: none;
-    transition: box-shadow 0.2s, border-color 0.2s;
-    
-    /* Prevent default touch actions like scrolling when touching the bar */
-    touch-action: none; 
+    transition: box-shadow 0.2s;
 }
 
-/* When in edit mode (double clicked) */
 .quick-format-container.editing {
-    border: 2px dashed var(--smart-theme-accent, #963cff);
+    z-index: 20000; /* High z-index for drag-over-everything mode */
+    border: 2px dashed var(--SmartThemeAccentColor, #963cff);
+    box-shadow: 0 0 15px var(--SmartThemeAccentColor, #963cff);
     cursor: move;
-    box-shadow: 0 0 15px var(--smart-theme-accent, #963cff);
-    background-color: rgba(0, 0, 0, 0.95);
+}
+
+.quick-format-container.vertical {
+    flex-direction: column;
 }
 
 .quick-format-btn {
-    background: var(--smart-theme-input-bg, #0000004d);
-    border: 1px solid var(--smart-theme-border, #ffffff33);
-    color: var(--smart-theme-body-text, #e1e1e1);
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--SmartThemeBodyColor, #eee);
     border-radius: 4px;
-    padding: 4px 8px;
-    font-size: 14px;
-    font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s ease;
-    font-family: monospace;
-    min-width: 30px;
+    font-size: 0.9em;
+    min-width: 32px;
+    height: 32px;
     display: flex;
-    justify-content: center;
     align-items: center;
+    justify-content: center;
+    transition: all 0.1s;
 }
 
 .quick-format-btn:hover {
-    background: var(--smart-theme-accent, #963cff);
+    background: var(--SmartThemeAccentColor, #0056b3);
     color: #fff;
-    border-color: var(--smart-theme-accent, #963cff);
+    border-color: transparent;
 }
 
-/* Edit Mode Controls (Hidden by default) */
+.qf-divider {
+    width: 1px;
+    height: 20px;
+    background: rgba(255,255,255,0.2);
+    margin: 0 4px;
+}
+.quick-format-container.vertical .qf-divider {
+    width: 20px;
+    height: 1px;
+    margin: 4px 0;
+}
+
+/* Enhancer Colors */
+.qf-btn-white { color: #eee; }
+.qf-btn-gold { color: #ffd700; }
+.qf-btn-purple { color: #963cff; }
+.qf-btn-green { color: #2ea043; }
+
+/* Generating Animation */
+.quick-format-btn.generating {
+    color: #ff4d4d;
+}
+.quick-format-btn.generating i {
+    animation: fa-spin 1.5s infinite linear;
+}
+
+/* Controls */
 .quick-format-controls {
     display: none;
+    position: absolute;
+    top: -40px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.8);
+    padding: 4px;
+    border-radius: 4px;
     gap: 4px;
-    margin-left: 8px;
-    padding-left: 8px;
-    border-left: 1px solid #555;
 }
-
-.quick-format-container.editing .quick-format-controls {
+.editing .quick-format-controls {
     display: flex;
+}
+.qf-free-save-btn {
+    top: auto;
 }
 
 .qf-control-btn {
-    font-size: 10px;
-    padding: 2px 6px;
-    background: #444;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #333;
+    border: 1px solid #555;
     color: white;
-    border: none;
-    border-radius: 3px;
     cursor: pointer;
+    border-radius: 3px;
 }
-
 .qf-control-btn.save {
+    width: auto;
+    padding: 0 8px;
     background: #2ea043;
+    border-color: #2ea043;
+    font-weight: bold;
 }
 
-.qf-control-btn:hover {
+/* Free Mode */
+.qf-free-container {
+    position: fixed;
+    top: 0; left: 0; width: 0; height: 0;
+    z-index: 95; /* Low enough to be behind drawers */
+}
+.qf-free-container.editing {
+    z-index: 20000;
+}
+.qf-free-mode-btn {
+    position: fixed;
+    z-index: 96;
+}
+.qf-free-container.editing .qf-free-mode-btn {
+    cursor: move;
+    border: 2px dashed #963cff;
+    z-index: 20000;
+}
+
+/* Settings */
+.qf-details {
+    background: rgba(0,0,0,0.2);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 5px;
+    margin-bottom: 8px;
+}
+.qf-details summary {
+    padding: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    color: var(--SmartThemeAccentColor, #ccc);
+}
+.qf-details-content {
+    padding: 10px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+}
+.qf-setting-row {
+    margin-bottom: 10px;
+}
+.qf-setting-row label {
+    display: block;
+    font-size: 0.85em;
     opacity: 0.8;
+    margin-bottom: 4px;
+}
+.qf-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
 }
