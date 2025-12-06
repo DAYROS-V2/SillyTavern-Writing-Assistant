@@ -53,17 +53,42 @@
                         </select>
                     </div>
 
+                    <!-- POSITION SLIDERS -->
+                    <div class="qf-setting-row">
+                        <label>Position X (Horizontal)</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input id="qf_pos_x" type="range" min="0" max="100" step="1" style="flex-grow: 1;" />
+                            <span id="qf_pos_x_val" style="width: 35px; text-align: right;">50%</span>
+                        </div>
+                    </div>
+
+                    <div class="qf-setting-row">
+                        <label>Position Y (Vertical)</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input id="qf_pos_y" type="range" min="0" max="100" step="1" style="flex-grow: 1;" />
+                            <span id="qf_pos_y_val" style="width: 35px; text-align: right;">50%</span>
+                        </div>
+                    </div>
+
+                    <div class="qf-setting-row">
+                        <label>Z-Index (Layer)</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input id="qf_z_index" type="range" min="0" max="20000" step="100" style="flex-grow: 1;" />
+                            <span id="qf_z_index_val" style="width: 45px; text-align: right;">800</span>
+                        </div>
+                    </div>
+
                     <div class="qf-setting-row">
                         <label>UI Scale (Zoom)</label>
                         <div style="display: flex; gap: 10px; align-items: center;">
                             <input id="qf_ui_scale" type="range" min="0.5" max="2.0" step="0.1" style="flex-grow: 1;" />
-                            <span id="qf_ui_scale_val" style="width: 30px;">1.0</span>
+                            <span id="qf_ui_scale_val" style="width: 30px; text-align: right;">1.0</span>
                         </div>
                     </div>
 
                     <div style="display: flex; gap: 10px; margin-top: 10px;">
                         <button id="qf_reset_pos" class="menu_button">
-                            <i class="fa-solid fa-arrows-rotate"></i> Reset Position
+                            <i class="fa-solid fa-arrows-rotate"></i> Reset Position & Size
                         </button>
                     </div>
                 </div>
