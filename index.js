@@ -64,6 +64,9 @@ let dragStartPos = { x: 0, y: 0 };
 
 // --- INITIALIZATION ---
 jQuery(async () => {
+    console.log('[QuickFormatting] Initializing...');
+    
+    // Inject Settings
     try {
         const settingsHtml = await $.get(`${extensionFolderPath}/settings.html`);
         $('#extensions_settings').append(settingsHtml);
@@ -73,12 +76,22 @@ jQuery(async () => {
 
     loadSettings();
     initSettingsListeners();
-    renderUI();
+    
+    // Delay rendering slightly to ensure ST is fully loaded
+    setTimeout(() => {
+        renderUI();
+    }, 1000);
 
-    // Visibility Loop
+    // Robust Visibility Loop
     setInterval(() => {
         const textarea = document.getElementById('send_textarea');
-        const isVisible = textarea && (textarea.offsetParent !== null);
+        // Check computed style for robustness on mobile
+        let isVisible = false;
+        if (textarea) {
+            const style = window.getComputedStyle(textarea);
+            isVisible = style.display !== 'none' && style.visibility !== 'hidden' && textarea.offsetParent !== null;
+        }
+
         if (container) container.style.display = isVisible ? 'flex' : 'none';
         if (freeContainer) freeContainer.style.display = isVisible ? 'block' : 'none';
     }, 500);
@@ -93,11 +106,13 @@ function loadSettings() {
             extension_settings[extensionName][key] = defaultSettings[key];
         }
     }
-    // Migration: Fix old positions
+    // Force migration of old bad positions
     if (extension_settings[extensionName].y === '85%') {
         extension_settings[extensionName].y = '50%';
         saveSettingsDebounced();
     }
+    
+    console.log('[QuickFormatting] Settings loaded', extension_settings[extensionName]);
     syncSettingsToUI();
 }
 
@@ -105,11 +120,10 @@ function updateSetting(key, value) {
     extension_settings[extensionName][key] = value;
     saveSettingsDebounced();
     
-    // Critical Re-renders
     if (['layoutMode', 'enabled', 'enhancerEnabled'].includes(key)) {
         renderUI(true);
     } else {
-        applyStyles(); // Live update for cosmetic changes
+        applyStyles(); 
     }
 }
 
@@ -239,6 +253,7 @@ function initSettingsListeners() {
 }
 
 function resetPosition() {
+    console.log('[QuickFormatting] Resetting Position');
     updateSetting('x', '50%');
     updateSetting('y', '50%');
     updateSetting('scale', 1.0);
@@ -350,8 +365,8 @@ function renderUI(force = false) {
     }
     const s = extension_settings[extensionName];
     if (!s.enabled) return;
-    if (!document.getElementById('send_textarea')) return;
-
+    
+    // We append to body to ensure it exists
     if (s.layoutMode === 'free') {
         if (!freeContainer) createFreeUI();
     } else {
@@ -362,6 +377,7 @@ function renderUI(force = false) {
 
 function createGroupedUI() {
     container = document.createElement('div');
+    container.id = 'qf-main-container'; // ID for debugging
     container.className = 'quick-format-container';
     container.style.touchAction = 'none'; // CRITICAL
     if(extension_settings[extensionName].layoutMode === 'vertical') container.classList.add('vertical');
@@ -387,6 +403,7 @@ function createGroupedUI() {
 
     document.body.appendChild(container);
     if(undoBuffer) updateUndoButtonState();
+    console.log('[QuickFormatting] UI Created (Grouped)');
 }
 
 function createFreeUI() {
@@ -422,7 +439,8 @@ function createFreeUI() {
 
     freeContainer.appendChild(controls);
     document.body.appendChild(freeContainer);
-    if(isEditing) toggleEdit(true); 
+    if(isEditing) toggleEdit(true);
+    console.log('[QuickFormatting] UI Created (Free)');
 }
 
 function createBtn(cfg, isFree = false) {
