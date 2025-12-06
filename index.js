@@ -629,6 +629,7 @@ function renderGrouped() {
     container.style.left = settings.x;
     container.style.top = settings.y;
     container.style.position = 'fixed';
+    container.style.touchAction = 'none'; // Prevent browser touch gestures from interfering
 
     formattingButtons.forEach(cfg => {
         if (settings.hiddenButtons[cfg.id]) return;
@@ -688,6 +689,9 @@ function handleGroupStart(e) {
     if(!isEditing) return;
     if(e.target.closest('.qf-control-btn')) return;
 
+    e.preventDefault();
+    e.stopPropagation();
+    
     isDragging = true;
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
@@ -695,9 +699,18 @@ function handleGroupStart(e) {
     startX = clientX;
     startY = clientY;
     
+    console.log('[QF Mobile Debug] Drag started at clientX:', clientX, 'clientY:', clientY);
+    
     const rect = container.getBoundingClientRect();
     initialX = rect.left + rect.width/2;
     initialY = rect.top + rect.height/2;
+    
+    console.log('[QF Mobile Debug] Initial center at X:', initialX, 'Y:', initialY);
+    
+    // Prevent any browser default behaviors
+    if (e.touches) {
+        document.body.style.overflow = 'hidden'; // Prevent scrolling during drag
+    }
 
     document.addEventListener('mousemove', handleGroupMove);
     document.addEventListener('touchmove', handleGroupMove, { passive: false });
@@ -708,20 +721,32 @@ function handleGroupStart(e) {
 function handleGroupMove(e) {
     if(!isDragging) return;
     e.preventDefault();
+    e.stopPropagation(); // Stop event bubbling
+    
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     
     const dx = clientX - startX;
     const dy = clientY - startY;
     
-    container.style.left = (initialX + dx) + 'px';
-    container.style.top = (initialY + dy) + 'px';
+    console.log('[QF Mobile Debug] Moving - dx:', dx, 'dy:', dy, 'clientY:', clientY, 'startY:', startY);
+    
+    const newLeft = (initialX + dx) + 'px';
+    const newTop = (initialY + dy) + 'px';
+    
+    container.style.left = newLeft;
+    container.style.top = newTop;
+    
+    console.log('[QF Mobile Debug] Set position to:', newLeft, newTop);
 }
 
 function handleGroupEnd() {
     if(isDragging) {
         isDragging = false;
         preventApplyStyles = true; // Prevent applyStyles from overriding our manual position
+        
+        // Restore body scrolling
+        document.body.style.overflow = '';
         
         const winW = window.innerWidth;
         const winH = window.innerHeight;
