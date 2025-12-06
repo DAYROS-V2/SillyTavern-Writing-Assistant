@@ -361,6 +361,13 @@ async function loadSettings() {
     }
     const settings = extension_settings[extensionName];
 
+    // Migration: If y is "85%" (old default), move to "50%" for mobile visibility
+    if (settings.y === '85%') {
+         settings.y = '50%';
+         extension_settings[extensionName].y = '50%';
+         saveSettingsDebounced();
+    }
+
     $('#qf_global_enabled').prop('checked', settings.enabled);
     $('#qf_layout_mode').val(settings.layoutMode || 'grouped');
     
@@ -461,6 +468,9 @@ function applyStyles() {
     // Update container scale/pos
     if (container) {
         container.style.transform = `translate(-50%, -50%) scale(${settings.scale})`;
+        // Make sure style updates visually immediately, crucial for mobile reset
+        container.style.left = settings.x;
+        container.style.top = settings.y;
     }
     if (freeContainer) {
         // Free container doesn't scale as a whole, buttons do
