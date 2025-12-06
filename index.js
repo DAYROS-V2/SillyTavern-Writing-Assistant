@@ -13,6 +13,7 @@ const defaultSettings = {
     layoutMode: 'grouped', 
     x: '50%',
     y: '50%',
+    zIndex: 800,
     scale: 1.0,
     hiddenButtons: {
         'btn_ooc': true,
@@ -75,13 +76,10 @@ function updateKeyDisplay() {
     const settings = extension_settings[extensionName];
     const key = getActiveKey();
     
-    // Set actual key value so dots match length
     $('#qf_api_key').val(key || '');
-    
     if (key) $('#qf_clear_key').show();
     else $('#qf_clear_key').hide();
     
-    // Toggle Fetch Button & Placeholder
     if (settings.apiProvider === 'openai') {
         $('#qf_fetch_container').hide();
         $('#qf_api_base').attr('placeholder', '');
@@ -141,18 +139,15 @@ async function fetchModels() {
 }
 
 async function enhanceText() {
-    // 1. Handle STOP Action
     if (isGenerating && abortController) {
         abortController.abort();
         abortController = null;
         isGenerating = false;
         updateEnhanceButtonState(false);
         toastr.info('Enhancement stopped.');
-        console.log('[QuickFormatting] Request aborted by user.');
         return;
     }
 
-    // 2. Start Logic
     const textarea = document.getElementById('send_textarea');
     if (!textarea || !textarea.value.trim()) {
         toastr.info('Type something to enhance first.');
@@ -222,7 +217,6 @@ async function enhanceText() {
             payload.reasoning_effort = settings.reasoningEffort;
         }
 
-        // --- POWER SHELL STYLE LOGGING ---
         console.log('Chat Completion request:', {
             messages: payload.messages,
             model: payload.model,
@@ -302,9 +296,7 @@ async function enhanceText() {
         }
 
     } catch (e) {
-        if (e.name === 'AbortError') {
-            // Ignore aborts
-        } else {
+        if (e.name !== 'AbortError') {
             console.error(e);
             toastr.error('Enhancement failed. See console.');
         }
@@ -361,7 +353,6 @@ async function loadSettings() {
     }
     const settings = extension_settings[extensionName];
 
-    // Migration: If y is "85%" (old default), move to "50%" for mobile visibility
     if (settings.y === '85%') {
          settings.y = '50%';
          extension_settings[extensionName].y = '50%';
@@ -372,7 +363,6 @@ async function loadSettings() {
     $('#qf_layout_mode').val(settings.layoutMode || 'grouped');
     
     formattingButtons.forEach(btn => {
-        // Fix for undefined hiddenButtons in very old saves or first init
         if (!settings.hiddenButtons) settings.hiddenButtons = {};
         const isHidden = settings.hiddenButtons[btn.id] === true;
         $(`#qf_toggle_${btn.id}`).prop('checked', !isHidden);
@@ -380,13 +370,24 @@ async function loadSettings() {
 
     $('#qf_enhancer_enabled').prop('checked', settings.enhancerEnabled);
     $('#qf_btn_color').val(settings.btnColor || 'white');
+    
+    // Sliders
     $('#qf_ui_scale').val(settings.scale || 1.0);
     $('#qf_ui_scale_val').text(settings.scale || 1.0);
+    
+    $('#qf_pos_x').val(parseFloat(settings.x) || 50);
+    $('#qf_pos_x_val').text((parseFloat(settings.x) || 50) + '%');
+    
+    $('#qf_pos_y').val(parseFloat(settings.y) || 50);
+    $('#qf_pos_y_val').text((parseFloat(settings.y) || 50) + '%');
+
+    $('#qf_z_index').val(settings.zIndex || 800);
+    $('#qf_z_index_val').text(settings.zIndex || 800);
     
     $('#qf_api_provider').val(settings.apiProvider);
     $('#qf_api_base').val(settings.apiBase);
     
-    updateKeyDisplay(); // Handle key state based on provider
+    updateKeyDisplay(); 
 
     // Params
     $('#qf_reasoning_effort').val(settings.reasoningEffort);
@@ -412,21 +413,18 @@ async function loadSettings() {
         $('#qf_api_model').val(settings.apiModel);
     }
     
-    // Safety check for mobile / offscreen positions
     if (!settings.x || !settings.y) {
         updateSetting('x', '50%');
         updateSetting('y', '50%');
     }
 
-    renderUI(true); // Initial Force Render
+    renderUI(true); 
 }
 
 function updateSetting(key, value) {
-    const prevSettings = { ...extension_settings[extensionName] };
     extension_settings[extensionName][key] = value;
     saveSettingsDebounced();
     
-    // Check if we need full re-render
     const rebuildRequired = 
         key === 'layoutMode' || 
         key === 'enabled' || 
@@ -435,7 +433,7 @@ function updateSetting(key, value) {
     if (rebuildRequired) {
         renderUI(true);
     } else {
-        applyStyles(); // Just update CSS/Classes
+        applyStyles(); 
     }
 }
 
@@ -447,7 +445,7 @@ function toggleButtonVisibility(btnId, isVisible) {
     else extension_settings[extensionName].hiddenButtons[btnId] = true;
     
     saveSettingsDebounced();
-    renderUI(true); // Adding/removing buttons requires rebuild
+    renderUI(true);
 }
 
 function adjustScale(delta) {
@@ -466,15 +464,17 @@ function adjustScale(delta) {
 function applyStyles() {
     const settings = extension_settings[extensionName];
     
-    // Update container scale/pos
     if (container) {
         container.style.transform = `translate(-50%, -50%) scale(${settings.scale})`;
-        // Make sure style updates visually immediately, crucial for mobile reset
-        container.style.left = settings.x;
-        container.style.top = settings.y;
-    }
-    if (freeContainer) {
-        // Free container doesn't scale as a whole, buttons do
+        
+        // Manual override from sliders if not currently dragging
+        if (!isDragging) {
+             container.style.left = settings.x;
+             container.style.top = settings.y;
+        }
+        
+        // Apply Z-Index (Override if editing)
+        container.style.zIndex = isEditing ? '20000' : (settings.zIndex || 800);
     }
     
     // Update Button Colors
@@ -484,11 +484,11 @@ function applyStyles() {
         btn.classList.add('qf-btn-' + (settings.btnColor || 'white'));
     });
     
-    // Update Individual Button Scales in Free Mode
     if (settings.layoutMode === 'free') {
         const freeBtns = document.querySelectorAll('.qf-free-mode-btn');
         freeBtns.forEach(btn => {
             btn.style.transform = `translate(-50%, -50%) scale(${settings.scale || 1})`;
+            btn.style.zIndex = isEditing ? '20000' : (settings.zIndex || 800);
         });
     }
 }
@@ -503,7 +503,7 @@ function renderUI(forceRebuild = false) {
         freeContainer = null;
     } else if (container || freeContainer) {
         applyStyles();
-        return; // UI already exists
+        return; 
     }
 
     if (!settings.enabled || !document.getElementById('send_textarea')) return;
@@ -546,7 +546,6 @@ function createBtn(cfg, isFree = false) {
     
     btn.title = cfg.title;
     
-    // Color Classes
     if (cfg.isEnhance) {
         const color = settings.btnColor || 'white';
         btn.classList.add('qf-enhance-btn');
@@ -670,6 +669,7 @@ function toggleEditMode(enabled) {
     if(container) {
         if(enabled) container.classList.add('editing');
         else container.classList.remove('editing');
+        applyStyles(); // Updates z-index for edit mode
     }
     if(freeContainer) {
         if(enabled) freeContainer.classList.add('editing');
@@ -691,7 +691,6 @@ function handleGroupStart(e) {
     startY = clientY;
     
     const rect = container.getBoundingClientRect();
-    // Start dragging from current visual position (pixels)
     initialX = rect.left + rect.width/2;
     initialY = rect.top + rect.height/2;
 
@@ -718,24 +717,33 @@ function handleGroupEnd() {
     if(isDragging) {
         isDragging = false;
         
-        // Convert to Percentages for responsive layout (mobile rotation)
         const winW = window.innerWidth;
         const winH = window.innerHeight;
         const rect = container.getBoundingClientRect();
+        
+        // Calculate center relative to window
         const cx = rect.left + rect.width/2;
         const cy = rect.top + rect.height/2;
         
         const pctX = (cx / winW) * 100;
         const pctY = (cy / winH) * 100;
         
+        // Update settings
         extension_settings[extensionName].x = pctX.toFixed(2) + '%';
         extension_settings[extensionName].y = pctY.toFixed(2) + '%';
         
-        // Re-apply to ensure styles match saved percentages
+        saveSettingsDebounced();
+        
+        // Sync sliders
+        $('#qf_pos_x').val(pctX);
+        $('#qf_pos_x_val').text(pctX.toFixed(0) + '%');
+        $('#qf_pos_y').val(pctY);
+        $('#qf_pos_y_val').text(pctY.toFixed(0) + '%');
+
+        // Apply immediately to DOM to prevent snap-back
         container.style.left = extension_settings[extensionName].x;
         container.style.top = extension_settings[extensionName].y;
         
-        saveSettingsDebounced();
         document.removeEventListener('mousemove', handleGroupMove);
         document.removeEventListener('mouseup', handleGroupEnd);
         document.removeEventListener('touchmove', handleGroupMove);
@@ -823,7 +831,6 @@ function handleFreeEnd() {
     if(isDragging && dragTarget) {
         isDragging = false;
         
-        // Convert to percentages
         const winW = window.innerWidth;
         const winH = window.innerHeight;
         const rect = dragTarget.getBoundingClientRect();
@@ -836,16 +843,19 @@ function handleFreeEnd() {
         const id = dragTarget.dataset.id;
         if (!extension_settings[extensionName].freePositions) extension_settings[extensionName].freePositions = {};
         
-        extension_settings[extensionName].freePositions[id] = {
+        const newPos = {
             x: pctX.toFixed(2) + '%',
             y: pctY.toFixed(2) + '%'
         };
         
-        // Apply percent
-        dragTarget.style.left = extension_settings[extensionName].freePositions[id].x;
-        dragTarget.style.top = extension_settings[extensionName].freePositions[id].y;
+        extension_settings[extensionName].freePositions[id] = newPos;
         
         saveSettingsDebounced();
+        
+        // Force update style to percent immediately
+        dragTarget.style.left = newPos.x;
+        dragTarget.style.top = newPos.y;
+        
         dragTarget = null;
         
         document.removeEventListener('mousemove', handleFreeMove);
@@ -879,21 +889,49 @@ jQuery(async () => {
     $('#qf_global_enabled').on('change', function() { updateSetting('enabled', $(this).prop('checked')); });
     $('#qf_layout_mode').on('change', function() { updateSetting('layoutMode', $(this).val()); });
     
+    // Position Sliders
+    $('#qf_pos_x').on('input', function() {
+        const val = $(this).val();
+        $('#qf_pos_x_val').text(val + '%');
+        updateSetting('x', val + '%');
+    });
+    
+    $('#qf_pos_y').on('input', function() {
+        const val = $(this).val();
+        $('#qf_pos_y_val').text(val + '%');
+        updateSetting('y', val + '%');
+    });
+
+    $('#qf_z_index').on('input', function() {
+        const val = $(this).val();
+        $('#qf_z_index_val').text(val);
+        updateSetting('zIndex', val);
+    });
+
     $('#qf_reset_pos').on('click', function() {
+        // Reset Logic
         updateSetting('x', '50%');
         updateSetting('y', '50%');
         updateSetting('scale', 1.0);
+        updateSetting('zIndex', 800);
         updateSetting('freePositions', {});
         
-        // Force DOM Update for Mobile Response
+        // Reset Slider UI
+        $('#qf_pos_x').val(50); $('#qf_pos_x_val').text('50%');
+        $('#qf_pos_y').val(50); $('#qf_pos_y_val').text('50%');
+        $('#qf_ui_scale').val(1.0); $('#qf_ui_scale_val').text('1.0');
+        $('#qf_z_index').val(800); $('#qf_z_index_val').text('800');
+
+        // Force DOM Update for Mobile Response (remove inline styles completely to be safe)
         if(container) {
             container.style.left = '50%';
             container.style.top = '50%';
             container.style.transform = 'translate(-50%, -50%) scale(1.0)';
+            container.style.zIndex = '800';
         }
         
         renderUI(true);
-        toastr.info('Position reset to center.');
+        toastr.info('Position & Size reset.');
     });
 
     $('#qf_enhancer_enabled').on('change', function() { updateSetting('enhancerEnabled', $(this).prop('checked')); });
@@ -964,16 +1002,12 @@ jQuery(async () => {
 
     loadSettings();
     
-    // Visibility Loop: Hides bar when chat is not main focus
-    // Optimized for Mobile: Falls back to checking if body is active if offsetParent fails
     setInterval(() => {
         const textarea = document.getElementById('send_textarea');
-        // Mobile browsers sometimes report offsetParent null improperly when virtual keyboard is up
-        // So we check if the element exists and the body isn't hidden
         const isVisible = textarea && (textarea.offsetParent !== null || document.body.offsetParent !== null);
         
         if (container) {
-            container.style.display = isVisible ? (extension_settings[extensionName].layoutMode === 'vertical' ? 'flex' : 'flex') : 'none';
+            container.style.display = isVisible ? 'flex' : 'none';
         }
         if (freeContainer) {
             freeContainer.style.display = isVisible ? 'block' : 'none';
