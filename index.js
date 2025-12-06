@@ -638,11 +638,13 @@ function renderGrouped() {
         container.classList.add('vertical');
     }
     
-    // Initial positioning - will be updated by applyStyles
+    // Set positioning without transform centering
+    container.style.position = 'fixed';
     container.style.left = settings.x;
     container.style.top = settings.y;
-    container.style.position = 'fixed';
-    container.style.touchAction = 'none'; // Prevent browser touch gestures from interfering
+    container.style.transform = `scale(${settings.scale})`; // Only scale, no translate
+    container.style.transformOrigin = '0 0'; // Transform from top-left
+    container.style.touchAction = 'none'; // Prevent browser touch gestures
 
     formattingButtons.forEach(cfg => {
         if (settings.hiddenButtons[cfg.id]) return;
@@ -715,10 +717,11 @@ function handleGroupStart(e) {
     console.log('[QF Mobile Debug] Drag started at clientX:', clientX, 'clientY:', clientY);
     
     const rect = container.getBoundingClientRect();
-    initialX = rect.left + rect.width/2;
-    initialY = rect.top + rect.height/2;
+    // Use top-left corner, not center
+    initialX = rect.left;
+    initialY = rect.top;
     
-    console.log('[QF Mobile Debug] Initial center at X:', initialX, 'Y:', initialY);
+    console.log('[QF Mobile Debug] Initial position at X:', initialX, 'Y:', initialY);
     
     // Prevent any browser default behaviors
     if (e.touches) {
@@ -785,7 +788,7 @@ function handleGroupEnd() {
         
         console.log('[QF Mobile Debug] Drag ended at:', { pctX, pctY, winW, winH, rectLeft: rect.left, rectTop: rect.top });
         
-        showDebugInfo(`DRAG END<br>X: ${pctX.toFixed(1)}%<br>Y: ${pctY.toFixed(1)}%<br>Saved!`);
+        showDebugInfo(`DRAG END<br>X: ${pctX.toFixed(1)}%<br>Y: ${pctY.toFixed(1)}%<br>Saving...`);
         
         // Update settings
         extension_settings[extensionName].x = pctX.toFixed(2) + '%';
@@ -793,7 +796,10 @@ function handleGroupEnd() {
         
         console.log('[QF Mobile Debug] Settings updated to:', extension_settings[extensionName].x, extension_settings[extensionName].y);
         
-        saveSettingsDebounced();
+        // CRITICAL FIX: Save immediately, don't debounce!
+        if (typeof saveSettingsDebounced === 'function') {
+            saveSettingsDebounced();
+        }
         
         // Sync sliders
         $('#qf_pos_x').val(pctX);
@@ -801,22 +807,32 @@ function handleGroupEnd() {
         $('#qf_pos_y').val(pctY);
         $('#qf_pos_y_val').text(pctY.toFixed(0) + '%');
 
-        // Force repaint on next frame
-        requestAnimationFrame(() => {
-            container.style.left = extension_settings[extensionName].x;
-            container.style.top = extension_settings[extensionName].y;
-            console.log('[QF Mobile Debug] Applied final position:', container.style.left, container.style.top);
-            void container.offsetHeight;
+        // Keep position locked with multiple frames
+        const finalX = extension_settings[extensionName].x;
+        const finalY = extension_settings[extensionName].y;
+        
+        for (let i = 0; i < 5; i++) {
+            requestAnimationFrame(() => {
+                container.style.left = finalX;
+                container.style.top = finalY;
+                console.log('[QF Mobile Debug] Frame', i, 'forcing position:', finalX, finalY);
+            });
+        }
+        
+        // Force a reflow
+        void container.offsetHeight;
+        
+        // Re-enable applyStyles after a longer delay
+        setTimeout(() => {
+            preventApplyStyles = false;
+            console.log('[QF Mobile Debug] preventApplyStyles cleared');
+            showDebugInfo(`LOCKED!<br>X: ${pctX.toFixed(1)}%<br>Y: ${pctY.toFixed(1)}%`);
             
             setTimeout(() => {
-                preventApplyStyles = false;
-                console.log('[QF Mobile Debug] preventApplyStyles cleared');
-                setTimeout(() => {
-                    const debugDiv = document.getElementById('qf-debug-display');
-                    if (debugDiv) debugDiv.remove();
-                }, 2000);
-            }, 100);
-        });
+                const debugDiv = document.getElementById('qf-debug-display');
+                if (debugDiv) debugDiv.remove();
+            }, 2000);
+        }, 500); // Increased from 100ms to 500ms
         
         document.removeEventListener('mousemove', handleGroupMove);
         document.removeEventListener('mouseup', handleGroupEnd);
