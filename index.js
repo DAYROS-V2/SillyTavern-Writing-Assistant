@@ -60,7 +60,11 @@ let undoBuffer = null;
 // --- DRAG STATE ---
 let activeDragEl = null;
 let dragStartCoords = { x: 0, y: 0 };
-let dragStartPos = { x: 0, y: 0 }; 
+let dragStartPos = { x: 0, y: 0 };
+let isDragging = false;
+
+// --- EVENT LISTENER TRACKING ---
+let buttonToggleListenersInitialized = false;
 
 // --- INITIALIZATION ---
 jQuery(async () => {
@@ -85,7 +89,6 @@ jQuery(async () => {
     // Robust Visibility Loop
     setInterval(() => {
         const textarea = document.getElementById('send_textarea');
-        // Check computed style for robustness on mobile
         let isVisible = false;
         if (textarea) {
             const style = window.getComputedStyle(textarea);
@@ -132,7 +135,7 @@ function syncSettingsToUI() {
     $('#qf_global_enabled').prop('checked', s.enabled);
     $('#qf_layout_mode').val(s.layoutMode);
     
-    // Buttons
+    // Buttons - only initialize listeners once to prevent stacking
     $('#qf_buttons_container').empty();
     formattingButtons.forEach(btn => {
         $('#qf_buttons_container').append(`
@@ -141,14 +144,22 @@ function syncSettingsToUI() {
                 <span>${btn.label} <small>(${btn.title})</small></span>
             </label>
         `);
-        $(document).on('change', `#qf_toggle_${btn.id}`, function() {
-            if (!s.hiddenButtons) s.hiddenButtons = {};
-            if ($(this).prop('checked')) delete s.hiddenButtons[btn.id];
-            else s.hiddenButtons[btn.id] = true;
-            saveSettingsDebounced();
-            renderUI(true);
-        });
     });
+    
+    // Only bind button toggle listeners once
+    if (!buttonToggleListenersInitialized) {
+        formattingButtons.forEach(btn => {
+            $(document).on('change', `#qf_toggle_${btn.id}`, function() {
+                const currentSettings = extension_settings[extensionName];
+                if (!currentSettings.hiddenButtons) currentSettings.hiddenButtons = {};
+                if ($(this).prop('checked')) delete currentSettings.hiddenButtons[btn.id];
+                else currentSettings.hiddenButtons[btn.id] = true;
+                saveSettingsDebounced();
+                renderUI(true);
+            });
+        });
+        buttonToggleListenersInitialized = true;
+    }
 
     $('#qf_enhancer_enabled').prop('checked', s.enhancerEnabled);
     $('#qf_btn_color').val(s.btnColor);
@@ -366,7 +377,6 @@ function renderUI(force = false) {
     const s = extension_settings[extensionName];
     if (!s.enabled) return;
     
-    // We append to body to ensure it exists
     if (s.layoutMode === 'free') {
         if (!freeContainer) createFreeUI();
     } else {
@@ -377,9 +387,15 @@ function renderUI(force = false) {
 
 function createGroupedUI() {
     container = document.createElement('div');
-    container.id = 'qf-main-container'; // ID for debugging
+    container.id = 'qf-main-container';
     container.className = 'quick-format-container';
-    container.style.touchAction = 'none'; // CRITICAL
+    
+    // Critical mobile styles
+    container.style.touchAction = 'none';
+    container.style.webkitTouchCallout = 'none';
+    container.style.webkitUserSelect = 'none';
+    container.style.userSelect = 'none';
+    
     if(extension_settings[extensionName].layoutMode === 'vertical') container.classList.add('vertical');
     
     const s = extension_settings[extensionName];
@@ -422,6 +438,7 @@ function createFreeUI() {
 
     const controls = document.createElement('div');
     controls.className = 'qf-free-controls';
+    controls.style.display = 'none'; // Hidden by default
     
     const saveBtn = document.createElement('button');
     saveBtn.className = 'qf-control-btn save';
@@ -430,11 +447,11 @@ function createFreeUI() {
     controls.appendChild(saveBtn);
 
     const minus = document.createElement('button'); minus.innerText = '-'; minus.className = 'qf-control-btn zoom'; 
-    minus.onclick = () => updateSetting('scale', Math.max(0.5, (s.scale - 0.1).toFixed(1)));
+    minus.onclick = () => updateSetting('scale', Math.max(0.5, (parseFloat(s.scale) - 0.1).toFixed(1)));
     controls.appendChild(minus);
 
     const plus = document.createElement('button'); plus.innerText = '+'; plus.className = 'qf-control-btn zoom';
-    plus.onclick = () => updateSetting('scale', Math.min(2.0, (s.scale + 0.1).toFixed(1)));
+    plus.onclick = () => updateSetting('scale', Math.min(2.0, (parseFloat(s.scale) + 0.1).toFixed(1)));
     controls.appendChild(plus);
 
     freeContainer.appendChild(controls);
@@ -451,6 +468,13 @@ function createBtn(cfg, isFree = false) {
     if (isFree) {
         btn.classList.add('qf-free-mode-btn');
         btn.dataset.id = cfg.id;
+        
+        // Critical mobile styles for free buttons
+        btn.style.touchAction = 'none';
+        btn.style.webkitTouchCallout = 'none';
+        btn.style.webkitUserSelect = 'none';
+        btn.style.userSelect = 'none';
+        
         addDragListeners(btn, true); 
         btn.addEventListener('dblclick', (e) => { e.stopPropagation(); toggleEdit(!isEditing); });
     }
@@ -469,78 +493,130 @@ function createEditControls() {
     const div = document.createElement('div');
     div.className = 'qf-edit-controls';
     const minus = document.createElement('button'); minus.innerText = '-'; minus.className = 'qf-control-btn'; 
-    minus.onclick = () => updateSetting('scale', Math.max(0.5, (extension_settings[extensionName].scale - 0.1).toFixed(1)));
+    minus.onclick = () => updateSetting('scale', Math.max(0.5, (parseFloat(extension_settings[extensionName].scale) - 0.1).toFixed(1)));
     div.appendChild(minus);
     const save = document.createElement('button'); save.innerText = 'SAVE'; save.className = 'qf-control-btn save';
     save.onclick = (e) => { e.stopPropagation(); toggleEdit(false); };
     div.appendChild(save);
     const plus = document.createElement('button'); plus.innerText = '+'; plus.className = 'qf-control-btn';
-    plus.onclick = () => updateSetting('scale', Math.min(2.0, (extension_settings[extensionName].scale + 0.1).toFixed(1)));
+    plus.onclick = () => updateSetting('scale', Math.min(2.0, (parseFloat(extension_settings[extensionName].scale) + 0.1).toFixed(1)));
     div.appendChild(plus);
     return div;
 }
 
-// --- DRAG LOGIC ---
+// --- DRAG LOGIC (FIXED FOR MOBILE) ---
 
 function addDragListeners(el, isFree = false) {
-    el.addEventListener('mousedown', (e) => handleDragStart(e, el, isFree));
+    // Mouse events
+    el.addEventListener('mousedown', (e) => handleDragStart(e, el, isFree), { passive: false });
+    
+    // Touch events with explicit options
     el.addEventListener('touchstart', (e) => handleDragStart(e, el, isFree), { passive: false });
 }
 
 function handleDragStart(e, el, isFree) {
     if (!isEditing) return;
-    if (e.target.tagName === 'BUTTON' && !el.classList.contains('quick-format-container')) return; 
     
-    if(e.cancelable) e.preventDefault();
+    // For grouped container, allow drag from anywhere
+    // For free buttons, the button itself is the drag target
+    if (!isFree && e.target.tagName === 'BUTTON' && !el.classList.contains('quick-format-container')) return;
+    
+    // Prevent default to stop scrolling on mobile
+    if (e.cancelable) {
+        e.preventDefault();
+    }
     e.stopPropagation();
+    
+    // Prevent iOS scroll bounce
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
 
     activeDragEl = el;
+    isDragging = true;
     
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    // Get coordinates - handle both touch and mouse
+    let clientX, clientY;
+    if (e.type === 'touchstart' && e.touches && e.touches.length > 0) {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+    } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+    }
     
     dragStartCoords = { x: clientX, y: clientY };
     
+    // Get current position from computed style or inline style
     const rect = el.getBoundingClientRect();
-    const parentW = window.innerWidth;
-    const parentH = window.innerHeight;
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
     
+    // Calculate center point as percentage
     const centerX = rect.left + (rect.width / 2);
     const centerY = rect.top + (rect.height / 2);
     
     dragStartPos = {
-        x: (centerX / parentW) * 100,
-        y: (centerY / parentH) * 100
+        x: (centerX / viewportW) * 100,
+        y: (centerY / viewportH) * 100
     };
 
-    document.addEventListener('mousemove', handleDragMove);
+    // Add move/end listeners to document
+    document.addEventListener('mousemove', handleDragMove, { passive: false });
     document.addEventListener('touchmove', handleDragMove, { passive: false });
-    document.addEventListener('mouseup', handleDragEnd);
-    document.addEventListener('touchend', handleDragEnd);
+    document.addEventListener('mouseup', handleDragEnd, { passive: false });
+    document.addEventListener('touchend', handleDragEnd, { passive: false });
+    document.addEventListener('touchcancel', handleDragEnd, { passive: false });
 }
 
 function handleDragMove(e) {
-    if (!activeDragEl) return;
-    if(e.cancelable) e.preventDefault();
+    if (!activeDragEl || !isDragging) return;
+    
+    // Prevent scrolling during drag
+    if (e.cancelable) {
+        e.preventDefault();
+    }
+    e.stopPropagation();
 
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    // Get coordinates
+    let clientX, clientY;
+    if (e.type === 'touchmove' && e.touches && e.touches.length > 0) {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+    } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+    }
 
+    // Calculate delta in pixels
     const dx = clientX - dragStartCoords.x;
     const dy = clientY - dragStartCoords.y;
 
-    const dPctX = (dx / window.innerWidth) * 100;
-    const dPctY = (dy / window.innerHeight) * 100;
+    // Convert to percentage of viewport
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+    
+    const dPctX = (dx / viewportW) * 100;
+    const dPctY = (dy / viewportH) * 100;
 
-    const newX = dragStartPos.x + dPctX;
-    const newY = dragStartPos.y + dPctY;
+    // Calculate new position
+    let newX = dragStartPos.x + dPctX;
+    let newY = dragStartPos.y + dPctY;
+    
+    // Clamp to viewport bounds (with some padding)
+    newX = Math.max(5, Math.min(95, newX));
+    newY = Math.max(5, Math.min(95, newY));
 
+    // Apply position directly
     activeDragEl.style.left = newX + '%';
     activeDragEl.style.top = newY + '%';
 }
 
 function handleDragEnd(e) {
     if (!activeDragEl) return;
+    
+    // Restore scrolling
+    document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
     
     const finalLeft = activeDragEl.style.left;
     const finalTop = activeDragEl.style.top;
@@ -558,11 +634,15 @@ function handleDragEnd(e) {
         $('#qf_pos_y').val(parseFloat(finalTop)); $('#qf_pos_y_val').text(finalTop);
     }
 
+    // Cleanup
     activeDragEl = null;
+    isDragging = false;
+    
     document.removeEventListener('mousemove', handleDragMove);
     document.removeEventListener('touchmove', handleDragMove);
     document.removeEventListener('mouseup', handleDragEnd);
     document.removeEventListener('touchend', handleDragEnd);
+    document.removeEventListener('touchcancel', handleDragEnd);
 }
 
 function toggleEdit(val) {
@@ -573,7 +653,11 @@ function toggleEdit(val) {
     }
     if (freeContainer) {
         const btns = freeContainer.querySelectorAll('.qf-free-mode-btn');
-        btns.forEach(b => b.style.zIndex = val ? '20000' : extension_settings[extensionName].zIndex);
+        btns.forEach(b => {
+            b.style.zIndex = val ? '20000' : extension_settings[extensionName].zIndex;
+            if (val) b.classList.add('editing');
+            else b.classList.remove('editing');
+        });
         const ctrl = freeContainer.querySelector('.qf-free-controls');
         if(ctrl) ctrl.style.display = val ? 'flex' : 'none';
     }
@@ -646,7 +730,7 @@ async function enhanceText() {
             presence_penalty: parseFloat(s.presencePenalty),
             top_p: parseFloat(s.topP),
         };
-        if(s.seed !== -1) payload.seed = parseInt(s.seed);
+        if(s.seed !== -1 && parseInt(s.seed) !== -1) payload.seed = parseInt(s.seed);
         if(s.reasoningEffort) payload.reasoning_effort = s.reasoningEffort;
         if(parseFloat(s.topK) > 0) payload.top_k = parseFloat(s.topK);
         if(parseFloat(s.minP) > 0) payload.min_p = parseFloat(s.minP);
