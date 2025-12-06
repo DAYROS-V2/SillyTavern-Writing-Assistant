@@ -1,230 +1,155 @@
-<!-- settings.html -->
-<div class="quick-formatting-settings-wrapper">
-    <div class="inline-drawer">
-        <div class="inline-drawer-toggle inline-drawer-header">
-            <b><i class="fa-solid fa-pen-nib"></i> Quick Formatting & Spellchecker</b>
-            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
-        </div>
-        <div class="inline-drawer-content">
-            
-            <div class="flex-container">
-                <label class="checkbox_label">
-                    <input id="qf_global_enabled" type="checkbox" />
-                    <span>Enable Extension</span>
-                </label>
-            </div>
 
-            <hr class="sysHR" />
+/* Main Container */
+.quick-format-container {
+    display: flex;
+    gap: 5px;
+    padding: 5px;
+    background-color: #1a1b1e;
+    border: 1px solid #454545;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    touch-action: none; /* Critical for mobile drag */
+    z-index: 800;
+    transition: box-shadow 0.2s, border-color 0.2s;
+    flex-wrap: wrap;
+    max-width: 90vw;
+}
 
-            <!-- 1. FORMATTING SECTION -->
-            <details class="qf-details" open>
-                <summary>Formatting & Layout</summary>
-                <div class="qf-details-content">
-                    
-                    <div class="qf-setting-row">
-                        <label>Buttons</label>
-                        <div id="qf_buttons_container" style="display: flex; flex-direction: column; gap: 5px; margin-left: 5px;">
-                            <!-- JS injects: *, ", OOC, Code -->
-                        </div>
-                        <div style="margin-top: 5px; margin-left: 5px;">
-                             <label class="checkbox_label">
-                                <input id="qf_enhancer_enabled" type="checkbox" />
-                                <span><i class="fa-solid fa-wand-magic-sparkles"></i> Spell Check / Enhancer</span>
-                            </label>
-                        </div>
-                    </div>
+.quick-format-container.vertical {
+    flex-direction: column;
+    width: min-content;
+}
 
-                    <div class="qf-setting-row" style="margin-top: 10px;">
-                        <label>Layout Mode</label>
-                        <select id="qf_layout_mode" class="text_pole">
-                            <option value="grouped">Horizontal (Grouped)</option>
-                            <option value="vertical">Vertical (Grouped)</option>
-                            <option value="free">Free (Individual Buttons)</option>
-                        </select>
-                    </div>
+/* Edit Mode Styling */
+.quick-format-container.editing, .qf-free-mode-btn.editing {
+    border-color: #963cff;
+    box-shadow: 0 0 15px rgba(150, 60, 255, 0.5);
+    background-color: rgba(26, 27, 30, 0.95);
+    z-index: 20000 !important;
+    cursor: move;
+}
 
-                    <div class="qf-setting-row">
-                        <label>Spell Check Color</label>
-                        <select id="qf_btn_color" class="text_pole">
-                            <option value="white">White (Default)</option>
-                            <option value="gold">Gold</option>
-                            <option value="purple">Purple</option>
-                            <option value="green">Green</option>
-                        </select>
-                    </div>
+/* Buttons */
+.quick-format-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 10px;
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 5px;
+    color: #e1e1e1;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: monospace;
+}
 
-                    <!-- POSITION SLIDERS -->
-                    <div class="qf-setting-row">
-                        <label>Position X (Horizontal)</label>
-                        <div style="display: flex; gap: 10px; align-items: center;">
-                            <input id="qf_pos_x" type="range" min="0" max="100" step="1" style="flex-grow: 1;" />
-                            <span id="qf_pos_x_val" style="width: 35px; text-align: right;">50%</span>
-                        </div>
-                    </div>
+.quick-format-btn:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
+}
 
-                    <div class="qf-setting-row">
-                        <label>Position Y (Vertical)</label>
-                        <div style="display: flex; gap: 10px; align-items: center;">
-                            <input id="qf_pos_y" type="range" min="0" max="100" step="1" style="flex-grow: 1;" />
-                            <span id="qf_pos_y_val" style="width: 35px; text-align: right;">50%</span>
-                        </div>
-                    </div>
+.quick-format-btn:active {
+    transform: translateY(0);
+}
 
-                    <div class="qf-setting-row">
-                        <label>Z-Index (Layer)</label>
-                        <div style="display: flex; gap: 10px; align-items: center;">
-                            <input id="qf_z_index" type="range" min="0" max="20000" step="100" style="flex-grow: 1;" />
-                            <span id="qf_z_index_val" style="width: 45px; text-align: right;">800</span>
-                        </div>
-                    </div>
+/* Edit Mode - Disable interactions on buttons to allow drag */
+.editing .quick-format-btn {
+    pointer-events: none;
+    opacity: 0.6;
+}
 
-                    <div class="qf-setting-row">
-                        <label>UI Scale (Zoom)</label>
-                        <div style="display: flex; gap: 10px; align-items: center;">
-                            <input id="qf_ui_scale" type="range" min="0.5" max="2.0" step="0.1" style="flex-grow: 1;" />
-                            <span id="qf_ui_scale_val" style="width: 30px; text-align: right;">1.0</span>
-                        </div>
-                    </div>
+/* Free Mode */
+.qf-free-wrapper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 0;
+}
 
-                    <div style="display: flex; gap: 10px; margin-top: 10px;">
-                        <button id="qf_reset_pos" class="menu_button">
-                            <i class="fa-solid fa-arrows-rotate"></i> Reset Position & Size
-                        </button>
-                    </div>
-                </div>
-            </details>
+.qf-free-mode-btn {
+    position: fixed;
+    z-index: 800;
+    touch-action: none;
+}
 
-            <!-- 2. AI SETTINGS SECTION -->
-            <details class="qf-details">
-                <summary>AI Settings (Spell Checker)</summary>
-                <div class="qf-details-content">
-                    
-                    <div class="qf-setting-row">
-                        <label>Provider</label>
-                        <select id="qf_api_provider" class="text_pole">
-                            <option value="openrouter">OpenRouter</option>
-                            <option value="openai">OpenAI / Compatible</option>
-                        </select>
-                    </div>
+.qf-free-controls {
+    position: fixed;
+    display: flex;
+    gap: 2px;
+    z-index: 20000;
+    padding: 2px;
+    background: rgba(0,0,0,0.8);
+    border-radius: 4px;
+    transform: translate(-50%, -120%); /* Sit above the anchor point */
+}
 
-                    <div class="qf-setting-row">
-                        <label>Base URL</label>
-                        <input id="qf_api_base" class="text_pole" type="text" placeholder="" />
-                    </div>
+/* Special Buttons */
+.qf-enhance-btn { font-weight: bold; }
+.qf-undo-btn { color: #ff6b6b; }
 
-                    <div class="qf-setting-row">
-                        <label>API Key <small style="opacity: 0.5;">(Stored locally)</small></label>
-                        <div style="display: flex; gap: 5px;">
-                            <input id="qf_api_key" class="text_pole" type="password" placeholder="sk-..." style="flex-grow: 1;" />
-                            <button id="qf_clear_key" class="menu_button" title="Clear Key" style="display: none; width: 40px; justify-content: center;">
-                                <i class="fa-solid fa-trash"></i>
-                            </button>
-                        </div>
-                    </div>
+/* Colors */
+.qf-btn-white { color: #ffffff; }
+.qf-btn-gold { color: #ffd700; border-color: rgba(255, 215, 0, 0.3); }
+.qf-btn-purple { color: #d0bfff; border-color: rgba(208, 191, 255, 0.3); }
+.qf-btn-green { color: #90ee90; border-color: rgba(144, 238, 144, 0.3); }
 
-                    <!-- Row: Model | Streaming -->
-                    <div class="qf-grid-2" style="align-items: flex-end;">
-                        <div class="qf-setting-row">
-                            <label>Model</label>
-                            <select id="qf_api_model" class="text_pole">
-                                <option value="" disabled selected>Select...</option>
-                            </select>
-                        </div>
-                        <div class="flex-container" style="height: 40px; align-items: center; justify-content: flex-start; margin-bottom: 0;">
-                            <label class="checkbox_label">
-                                <input id="qf_stream" type="checkbox" />
-                                <span>Streaming</span>
-                            </label>
-                        </div>
-                    </div>
+/* Divider */
+.qf-divider {
+    width: 1px;
+    height: 20px;
+    background-color: rgba(255, 255, 255, 0.2);
+    margin: 0 4px;
+}
+.vertical .qf-divider {
+    width: 20px;
+    height: 1px;
+    margin: 4px 0;
+}
 
-                    <div class="qf-setting-row" id="qf_fetch_container">
-                        <button id="qf_fetch_models" class="menu_button">
-                            <i class="fa-solid fa-sync"></i> Fetch Models
-                        </button>
-                    </div>
+/* Edit Controls (Grouped) */
+.qf-edit-controls {
+    display: none;
+    position: absolute;
+    top: -35px;
+    right: 0;
+    background: #2b2b2b;
+    padding: 4px;
+    border-radius: 4px;
+    gap: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    pointer-events: auto !important;
+}
 
-                    <div class="qf-setting-row">
-                        <label>System Prompt</label>
-                        <textarea id="qf_system_prompt" class="text_pole" rows="3" placeholder="You are a helpful writing assistant..."></textarea>
-                    </div>
+.editing .qf-edit-controls {
+    display: flex;
+}
 
-                    <!-- Row: Context | Output Limit -->
-                    <div class="qf-grid-2">
-                        <div class="qf-setting-row">
-                            <label title="Includes both User and Character messages">Context (Msg Pairs)</label>
-                            <input id="qf_context_limit" class="text_pole" type="number" min="0" max="50" value="5" />
-                        </div>
-                        <div class="qf-setting-row">
-                            <label>Output Limit (Tokens)</label>
-                            <input id="qf_max_tokens" class="text_pole" type="number" min="0" value="0" />
-                        </div>
-                    </div>
-
-                    <!-- NESTED ADVANCED SETTINGS -->
-                    <details class="qf-details" style="margin-top: 15px; background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.05);">
-                        <summary style="font-size: 0.85em; opacity: 0.9;">Advanced Generation Settings</summary>
-                        <div class="qf-details-content">
-                            
-                            <div class="qf-grid-2">
-                                <div class="qf-setting-row">
-                                    <label>Temperature</label>
-                                    <input id="qf_temp" class="text_pole" type="number" step="0.01" min="0" max="2" value="1" />
-                                </div>
-                                <div class="qf-setting-row">
-                                    <label>Frequency Penalty</label>
-                                    <input id="qf_freq_pen" class="text_pole" type="number" step="0.01" min="-2" max="2" value="0" />
-                                </div>
-                                <div class="qf-setting-row">
-                                    <label>Presence Penalty</label>
-                                    <input id="qf_pres_pen" class="text_pole" type="number" step="0.01" min="-2" max="2" value="0" />
-                                </div>
-                                <div class="qf-setting-row">
-                                    <label>Repetition Penalty</label>
-                                    <input id="qf_rep_pen" class="text_pole" type="number" step="0.01" min="0" value="1" />
-                                </div>
-                                <div class="qf-setting-row">
-                                    <label>Top K</label>
-                                    <input id="qf_top_k" class="text_pole" type="number" step="1" min="0" value="0" />
-                                </div>
-                                <div class="qf-setting-row">
-                                    <label>Top P</label>
-                                    <input id="qf_top_p" class="text_pole" type="number" step="0.01" min="0" max="1" value="1" />
-                                </div>
-                                <div class="qf-setting-row">
-                                    <label>Min P</label>
-                                    <input id="qf_min_p" class="text_pole" type="number" step="0.01" min="0" max="1" value="0" />
-                                </div>
-                                <div class="qf-setting-row">
-                                    <label>Top A</label>
-                                    <input id="qf_top_a" class="text_pole" type="number" step="0.01" min="0" max="1" value="0" />
-                                </div>
-                            </div>
-
-                            <div class="qf-setting-row">
-                                <label>Seed (-1 = Random)</label>
-                                <input id="qf_seed" class="text_pole" type="number" step="1" min="-1" value="-1" />
-                            </div>
-                            
-                            <div class="qf-setting-row">
-                                <label>Reasoning Effort (O1 only)</label>
-                                <select id="qf_reasoning_effort" class="text_pole">
-                                    <option value="">None / Default</option>
-                                    <option value="low">Low</option>
-                                    <option value="medium">Medium</option>
-                                    <option value="high">High</option>
-                                </select>
-                            </div>
-
-                        </div>
-                    </details>
-
-                </div>
-            </details>
-            
-            <div style="margin-top: 10px; font-size: 0.85em; opacity: 0.7;">
-                Double-click the floating bar to enter <b>Edit Mode</b>.
-            </div>
-        </div>
-    </div>
-</div>
+.qf-control-btn {
+    width: 24px;
+    height: 24px;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #444;
+    border: 1px solid #666;
+    color: white;
+    border-radius: 3px;
+    cursor: pointer;
+}
+.qf-control-btn.save {
+    width: auto;
+    padding: 0 8px;
+    font-size: 11px;
+    font-weight: bold;
+    background: #2ea043;
+    border-color: #3fb950;
+}
