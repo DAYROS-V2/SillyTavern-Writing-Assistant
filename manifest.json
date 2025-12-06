@@ -6,7 +6,7 @@
     "js": "index.js",
     "css": "style.css",
     "author": "You",
-    "version": "2.0.2",
+    "version": "1.2.2",
     "settings": "settings.html",
     "homePage": "https://github.com/DAYROS-V2/SillyTavern-Writing-Assistant.git"
 }
