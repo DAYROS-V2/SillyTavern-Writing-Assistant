@@ -465,13 +465,10 @@ function applyStyles() {
     const settings = extension_settings[extensionName];
     
     if (container) {
+        // Always apply position explicitly
+        container.style.left = settings.x;
+        container.style.top = settings.y;
         container.style.transform = `translate(-50%, -50%) scale(${settings.scale})`;
-        
-        // Manual override from sliders if not currently dragging
-        if (!isDragging) {
-             container.style.left = settings.x;
-             container.style.top = settings.y;
-        }
         
         // Apply Z-Index (Override if editing)
         container.style.zIndex = isEditing ? '20000' : (settings.zIndex || 800);
@@ -490,13 +487,6 @@ function applyStyles() {
             btn.style.transform = `translate(-50%, -50%) scale(${settings.scale || 1})`;
             btn.style.zIndex = isEditing ? '20000' : (settings.zIndex || 800);
         });
-        
-        // Update Controls (Save Button)
-        const controls = document.querySelector('.qf-free-save-btn');
-        if (controls && !isDragging) {
-            controls.style.left = settings.x;
-            controls.style.top = settings.y;
-        }
     }
 }
 
@@ -929,15 +919,9 @@ jQuery(async () => {
         $('#qf_ui_scale').val(1.0); $('#qf_ui_scale_val').text('1.0');
         $('#qf_z_index').val(800); $('#qf_z_index_val').text('800');
 
-        // Force DOM Update for Mobile Response (remove inline styles completely to be safe)
-        if(container) {
-            container.style.left = '50%';
-            container.style.top = '50%';
-            container.style.transform = 'translate(-50%, -50%) scale(1.0)';
-            container.style.zIndex = '800';
-        }
-        
+        // Force immediate rebuild
         renderUI(true);
+        
         toastr.info('Position & Size reset.');
     });
 
