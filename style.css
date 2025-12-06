@@ -12,8 +12,8 @@
     justify-content: center;
     user-select: none;
     -webkit-user-select: none;
-    touch-action: none; /* Critical for mobile drag */
-    z-index: 2000;
+    touch-action: none !important; /* Critical for mobile drag */
+    z-index: 2000 !important;
     transition: box-shadow 0.2s, border-color 0.2s;
     flex-wrap: wrap;
     max-width: 90vw;
@@ -78,7 +78,7 @@
 .qf-free-mode-btn {
     position: fixed;
     z-index: 2000;
-    touch-action: none;
+    touch-action: none !important;
 }
 
 .qf-free-controls {
