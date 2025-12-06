@@ -12,7 +12,7 @@ const defaultSettings = {
     enabled: true,
     layoutMode: 'grouped', 
     x: '50%',
-    y: '85%',
+    y: '50%',
     scale: 1.0,
     hiddenButtons: {
         'btn_ooc': true,
@@ -407,7 +407,7 @@ async function loadSettings() {
     // Safety check for mobile / offscreen positions
     if (!settings.x || !settings.y) {
         updateSetting('x', '50%');
-        updateSetting('y', '85%');
+        updateSetting('y', '50%');
     }
 
     renderUI(true); // Initial Force Render
@@ -870,7 +870,7 @@ jQuery(async () => {
     
     $('#qf_reset_pos').on('click', function() {
         updateSetting('x', '50%');
-        updateSetting('y', '85%');
+        updateSetting('y', '50%');
         updateSetting('scale', 1.0);
         updateSetting('freePositions', {});
         renderUI(true);
