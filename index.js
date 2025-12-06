@@ -62,9 +62,13 @@ let activeDragEl = null;
 let dragStartCoords = { x: 0, y: 0 };
 let dragStartPos = { x: 0, y: 0 };
 let isDragging = false;
+let activePointerId = null;
 
 // --- EVENT LISTENER TRACKING ---
 let buttonToggleListenersInitialized = false;
+
+// --- GLOBAL TOUCH MOVE BLOCKER (for mobile vertical drag) ---
+let globalTouchMoveHandler = null;
 
 // --- INITIALIZATION ---
 jQuery(async () => {
@@ -390,12 +394,6 @@ function createGroupedUI() {
     container.id = 'qf-main-container';
     container.className = 'quick-format-container';
     
-    // Critical mobile styles
-    container.style.touchAction = 'none';
-    container.style.webkitTouchCallout = 'none';
-    container.style.webkitUserSelect = 'none';
-    container.style.userSelect = 'none';
-    
     if(extension_settings[extensionName].layoutMode === 'vertical') container.classList.add('vertical');
     
     const s = extension_settings[extensionName];
@@ -438,7 +436,7 @@ function createFreeUI() {
 
     const controls = document.createElement('div');
     controls.className = 'qf-free-controls';
-    controls.style.display = 'none'; // Hidden by default
+    controls.style.display = 'none';
     
     const saveBtn = document.createElement('button');
     saveBtn.className = 'qf-control-btn save';
@@ -468,13 +466,6 @@ function createBtn(cfg, isFree = false) {
     if (isFree) {
         btn.classList.add('qf-free-mode-btn');
         btn.dataset.id = cfg.id;
-        
-        // Critical mobile styles for free buttons
-        btn.style.touchAction = 'none';
-        btn.style.webkitTouchCallout = 'none';
-        btn.style.webkitUserSelect = 'none';
-        btn.style.userSelect = 'none';
-        
         addDragListeners(btn, true); 
         btn.addEventListener('dblclick', (e) => { e.stopPropagation(); toggleEdit(!isEditing); });
     }
@@ -504,54 +495,36 @@ function createEditControls() {
     return div;
 }
 
-// --- DRAG LOGIC (FIXED FOR MOBILE) ---
+// --- DRAG LOGIC (AGGRESSIVE MOBILE FIX WITH POINTER EVENTS) ---
 
 function addDragListeners(el, isFree = false) {
-    // Mouse events
-    el.addEventListener('mousedown', (e) => handleDragStart(e, el, isFree), { passive: false });
+    // Pointer events are the modern unified way to handle mouse + touch
+    el.addEventListener('pointerdown', (e) => handleDragStart(e, el, isFree), { passive: false });
     
-    // Touch events with explicit options
-    el.addEventListener('touchstart', (e) => handleDragStart(e, el, isFree), { passive: false });
+    // Also add touch events as fallback for older browsers
+    el.addEventListener('touchstart', (e) => handleTouchStart(e, el, isFree), { passive: false });
 }
 
-function handleDragStart(e, el, isFree) {
+function handleTouchStart(e, el, isFree) {
+    // Convert touch to pointer-like event and use same handler
     if (!isEditing) return;
-    
-    // For grouped container, allow drag from anywhere
-    // For free buttons, the button itself is the drag target
     if (!isFree && e.target.tagName === 'BUTTON' && !el.classList.contains('quick-format-container')) return;
     
-    // Prevent default to stop scrolling on mobile
-    if (e.cancelable) {
-        e.preventDefault();
-    }
+    e.preventDefault();
     e.stopPropagation();
     
-    // Prevent iOS scroll bounce
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
-
+    const touch = e.touches[0];
+    
     activeDragEl = el;
     isDragging = true;
+    activePointerId = 'touch';
     
-    // Get coordinates - handle both touch and mouse
-    let clientX, clientY;
-    if (e.type === 'touchstart' && e.touches && e.touches.length > 0) {
-        clientX = e.touches[0].clientX;
-        clientY = e.touches[0].clientY;
-    } else {
-        clientX = e.clientX;
-        clientY = e.clientY;
-    }
+    dragStartCoords = { x: touch.clientX, y: touch.clientY };
     
-    dragStartCoords = { x: clientX, y: clientY };
-    
-    // Get current position from computed style or inline style
     const rect = el.getBoundingClientRect();
     const viewportW = window.innerWidth;
     const viewportH = window.innerHeight;
     
-    // Calculate center point as percentage
     const centerX = rect.left + (rect.width / 2);
     const centerY = rect.top + (rect.height / 2);
     
@@ -560,32 +533,115 @@ function handleDragStart(e, el, isFree) {
         y: (centerY / viewportH) * 100
     };
 
-    // Add move/end listeners to document
-    document.addEventListener('mousemove', handleDragMove, { passive: false });
-    document.addEventListener('touchmove', handleDragMove, { passive: false });
-    document.addEventListener('mouseup', handleDragEnd, { passive: false });
-    document.addEventListener('touchend', handleDragEnd, { passive: false });
-    document.addEventListener('touchcancel', handleDragEnd, { passive: false });
+    enableDragMode();
+
+    document.addEventListener('touchmove', handleTouchMove, { passive: false, capture: true });
+    document.addEventListener('touchend', handleTouchEnd, { passive: false, capture: true });
+    document.addEventListener('touchcancel', handleTouchEnd, { passive: false, capture: true });
+    
+    console.log('[QuickFormatting] Touch drag started at', dragStartCoords);
+}
+
+function handleTouchMove(e) {
+    if (!activeDragEl || !isDragging || activePointerId !== 'touch') return;
+    
+    e.preventDefault();
+    e.stopPropagation();
+
+    const touch = e.touches[0];
+    const clientX = touch.clientX;
+    const clientY = touch.clientY;
+
+    const dx = clientX - dragStartCoords.x;
+    const dy = clientY - dragStartCoords.y;
+
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+    
+    const dPctX = (dx / viewportW) * 100;
+    const dPctY = (dy / viewportH) * 100;
+
+    let newX = dragStartPos.x + dPctX;
+    let newY = dragStartPos.y + dPctY;
+    
+    newX = Math.max(5, Math.min(95, newX));
+    newY = Math.max(5, Math.min(95, newY));
+
+    activeDragEl.style.left = newX + '%';
+    activeDragEl.style.top = newY + '%';
+}
+
+function handleTouchEnd(e) {
+    if (!activeDragEl || activePointerId !== 'touch') return;
+    
+    finishDrag();
+    
+    document.removeEventListener('touchmove', handleTouchMove, { capture: true });
+    document.removeEventListener('touchend', handleTouchEnd, { capture: true });
+    document.removeEventListener('touchcancel', handleTouchEnd, { capture: true });
+}
+
+function handleDragStart(e, el, isFree) {
+    if (!isEditing) return;
+    
+    // For grouped container, allow drag from anywhere
+    if (!isFree && e.target.tagName === 'BUTTON' && !el.classList.contains('quick-format-container')) return;
+    
+    // Prevent ALL default behavior
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Capture pointer for this element
+    try {
+        el.setPointerCapture(e.pointerId);
+    } catch (err) {
+        console.log('[QuickFormatting] setPointerCapture not supported');
+    }
+
+    activeDragEl = el;
+    isDragging = true;
+    activePointerId = e.pointerId;
+    
+    // Get coordinates
+    const clientX = e.clientX;
+    const clientY = e.clientY;
+    
+    dragStartCoords = { x: clientX, y: clientY };
+    
+    // Get current position
+    const rect = el.getBoundingClientRect();
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+    
+    const centerX = rect.left + (rect.width / 2);
+    const centerY = rect.top + (rect.height / 2);
+    
+    dragStartPos = {
+        x: (centerX / viewportW) * 100,
+        y: (centerY / viewportH) * 100
+    };
+
+    // CRITICAL: Block ALL touch/scroll on the document during drag
+    enableDragMode();
+
+    // Add pointer listeners to document
+    document.addEventListener('pointermove', handleDragMove, { passive: false, capture: true });
+    document.addEventListener('pointerup', handleDragEnd, { passive: false, capture: true });
+    document.addEventListener('pointercancel', handleDragEnd, { passive: false, capture: true });
+    
+    console.log('[QuickFormatting] Pointer drag started at', dragStartCoords);
 }
 
 function handleDragMove(e) {
     if (!activeDragEl || !isDragging) return;
+    if (activePointerId !== 'touch' && e.pointerId !== activePointerId) return;
     
-    // Prevent scrolling during drag
-    if (e.cancelable) {
-        e.preventDefault();
-    }
+    // Prevent ALL default behavior - this is critical for mobile vertical movement
+    e.preventDefault();
     e.stopPropagation();
 
-    // Get coordinates
-    let clientX, clientY;
-    if (e.type === 'touchmove' && e.touches && e.touches.length > 0) {
-        clientX = e.touches[0].clientX;
-        clientY = e.touches[0].clientY;
-    } else {
-        clientX = e.clientX;
-        clientY = e.clientY;
-    }
+    const clientX = e.clientX;
+    const clientY = e.clientY;
 
     // Calculate delta in pixels
     const dx = clientX - dragStartCoords.x;
@@ -602,7 +658,7 @@ function handleDragMove(e) {
     let newX = dragStartPos.x + dPctX;
     let newY = dragStartPos.y + dPctY;
     
-    // Clamp to viewport bounds (with some padding)
+    // Clamp to viewport bounds
     newX = Math.max(5, Math.min(95, newX));
     newY = Math.max(5, Math.min(95, newY));
 
@@ -613,13 +669,32 @@ function handleDragMove(e) {
 
 function handleDragEnd(e) {
     if (!activeDragEl) return;
+    if (activePointerId !== 'touch' && e.pointerId !== activePointerId) return;
     
+    // Release pointer capture
+    try {
+        if (activePointerId !== 'touch') {
+            activeDragEl.releasePointerCapture(activePointerId);
+        }
+    } catch (err) {
+        // Ignore
+    }
+    
+    finishDrag();
+    
+    document.removeEventListener('pointermove', handleDragMove, { capture: true });
+    document.removeEventListener('pointerup', handleDragEnd, { capture: true });
+    document.removeEventListener('pointercancel', handleDragEnd, { capture: true });
+}
+
+function finishDrag() {
     // Restore scrolling
-    document.body.style.overflow = '';
-    document.documentElement.style.overflow = '';
+    disableDragMode();
     
     const finalLeft = activeDragEl.style.left;
     const finalTop = activeDragEl.style.top;
+    
+    console.log('[QuickFormatting] Drag ended at', finalLeft, finalTop);
     
     const s = extension_settings[extensionName];
     if (activeDragEl.classList.contains('qf-free-mode-btn')) {
@@ -637,12 +712,86 @@ function handleDragEnd(e) {
     // Cleanup
     activeDragEl = null;
     isDragging = false;
+    activePointerId = null;
+}
+
+// --- AGGRESSIVE SCROLL/TOUCH BLOCKING DURING DRAG ---
+
+function enableDragMode() {
+    // Store original values
+    document.body.dataset.qfOriginalOverflow = document.body.style.overflow || '';
+    document.body.dataset.qfOriginalPosition = document.body.style.position || '';
+    document.body.dataset.qfOriginalTouchAction = document.body.style.touchAction || '';
+    document.body.dataset.qfOriginalOverscroll = document.body.style.overscrollBehavior || '';
+    document.documentElement.dataset.qfOriginalOverflow = document.documentElement.style.overflow || '';
     
-    document.removeEventListener('mousemove', handleDragMove);
-    document.removeEventListener('touchmove', handleDragMove);
-    document.removeEventListener('mouseup', handleDragEnd);
-    document.removeEventListener('touchend', handleDragEnd);
-    document.removeEventListener('touchcancel', handleDragEnd);
+    // Block scrolling on body and html - AGGRESSIVE
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
+    document.body.style.height = '100%';
+    document.body.style.touchAction = 'none';
+    document.body.style.overscrollBehavior = 'none';
+    document.documentElement.style.overflow = 'hidden';
+    document.documentElement.style.overscrollBehavior = 'none';
+    
+    // Add a global touchmove blocker that prevents EVERYTHING
+    globalTouchMoveHandler = function(e) {
+        if (isDragging) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            return false;
+        }
+    };
+    
+    // Attach to window and document at capture phase
+    window.addEventListener('touchmove', globalTouchMoveHandler, { passive: false, capture: true });
+    document.addEventListener('touchmove', globalTouchMoveHandler, { passive: false, capture: true });
+    document.addEventListener('scroll', preventScroll, { passive: false, capture: true });
+    window.addEventListener('scroll', preventScroll, { passive: false, capture: true });
+    document.addEventListener('wheel', preventScroll, { passive: false, capture: true });
+    
+    // Add class for CSS-based blocking
+    document.body.classList.add('qf-dragging');
+    
+    console.log('[QuickFormatting] Drag mode enabled - scroll blocked');
+}
+
+function disableDragMode() {
+    // Restore original values
+    document.body.style.overflow = document.body.dataset.qfOriginalOverflow || '';
+    document.body.style.position = document.body.dataset.qfOriginalPosition || '';
+    document.body.style.width = '';
+    document.body.style.height = '';
+    document.body.style.touchAction = document.body.dataset.qfOriginalTouchAction || '';
+    document.body.style.overscrollBehavior = document.body.dataset.qfOriginalOverscroll || '';
+    document.documentElement.style.overflow = document.documentElement.dataset.qfOriginalOverflow || '';
+    document.documentElement.style.overscrollBehavior = '';
+    
+    // Remove global touchmove blocker
+    if (globalTouchMoveHandler) {
+        window.removeEventListener('touchmove', globalTouchMoveHandler, { capture: true });
+        document.removeEventListener('touchmove', globalTouchMoveHandler, { capture: true });
+        globalTouchMoveHandler = null;
+    }
+    
+    document.removeEventListener('scroll', preventScroll, { capture: true });
+    window.removeEventListener('scroll', preventScroll, { capture: true });
+    document.removeEventListener('wheel', preventScroll, { capture: true });
+    
+    document.body.classList.remove('qf-dragging');
+    
+    console.log('[QuickFormatting] Drag mode disabled - scroll restored');
+}
+
+function preventScroll(e) {
+    if (isDragging) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        return false;
+    }
 }
 
 function toggleEdit(val) {
