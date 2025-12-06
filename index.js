@@ -59,12 +59,15 @@ let freeContainer = null;
 let isEditing = false;
 let isDragging = false;
 let undoBuffer = null; 
-let preventApplyStyles = false; // Prevent position overrides during manual positioning
 
 // API Control
 let abortController = null;
 let isGenerating = false;
 let dragTarget = null;
+
+// Track last known coordinates for smooth drop
+let lastDragX = 0;
+let lastDragY = 0;
 
 // --- API HELPER ---
 function getActiveKey() {
@@ -466,12 +469,13 @@ function applyStyles() {
     const settings = extension_settings[extensionName];
     
     if (container) {
-        // Don't override position if we're manually positioning
-        if (!preventApplyStyles) {
-            container.style.left = settings.x;
-            container.style.top = settings.y;
-        }
         container.style.transform = `translate(-50%, -50%) scale(${settings.scale})`;
+        
+        // Manual override from sliders if not currently dragging
+        if (!isDragging) {
+             container.style.left = settings.x;
+             container.style.top = settings.y;
+        }
         
         // Apply Z-Index (Override if editing)
         container.style.zIndex = isEditing ? '20000' : (settings.zIndex || 800);
@@ -490,6 +494,13 @@ function applyStyles() {
             btn.style.transform = `translate(-50%, -50%) scale(${settings.scale || 1})`;
             btn.style.zIndex = isEditing ? '20000' : (settings.zIndex || 800);
         });
+        
+        // Update Controls (Save Button)
+        const controls = document.querySelector('.qf-free-save-btn');
+        if (controls && !isDragging) {
+            controls.style.left = settings.x;
+            controls.style.top = settings.y;
+        }
     }
 }
 
@@ -694,6 +705,10 @@ function handleGroupStart(e) {
     initialX = rect.left + rect.width/2;
     initialY = rect.top + rect.height/2;
 
+    // Track last drag position
+    lastDragX = initialX;
+    lastDragY = initialY;
+
     document.addEventListener('mousemove', handleGroupMove);
     document.addEventListener('touchmove', handleGroupMove, { passive: false });
     document.addEventListener('mouseup', handleGroupEnd);
@@ -709,22 +724,23 @@ function handleGroupMove(e) {
     const dx = clientX - startX;
     const dy = clientY - startY;
     
-    container.style.left = (initialX + dx) + 'px';
-    container.style.top = (initialY + dy) + 'px';
+    lastDragX = initialX + dx;
+    lastDragY = initialY + dy;
+    
+    container.style.left = lastDragX + 'px';
+    container.style.top = lastDragY + 'px';
 }
 
 function handleGroupEnd() {
     if(isDragging) {
         isDragging = false;
-        preventApplyStyles = true; // Prevent applyStyles from overriding our manual position
         
         const winW = window.innerWidth;
         const winH = window.innerHeight;
-        const rect = container.getBoundingClientRect();
         
-        // Calculate center relative to window
-        const cx = rect.left + rect.width/2;
-        const cy = rect.top + rect.height/2;
+        // Use cached last drag position for smoother drop calculation on mobile
+        const cx = lastDragX;
+        const cy = lastDragY;
         
         const pctX = (cx / winW) * 100;
         const pctY = (cy / winH) * 100;
@@ -741,18 +757,9 @@ function handleGroupEnd() {
         $('#qf_pos_y').val(pctY);
         $('#qf_pos_y_val').text(pctY.toFixed(0) + '%');
 
-        // Force repaint on next frame (critical for mobile)
-        requestAnimationFrame(() => {
-            container.style.left = extension_settings[extensionName].x;
-            container.style.top = extension_settings[extensionName].y;
-            // Force a reflow
-            void container.offsetHeight;
-            
-            // Re-enable applyStyles after a short delay
-            setTimeout(() => {
-                preventApplyStyles = false;
-            }, 100);
-        });
+        // Apply immediately to DOM to prevent snap-back
+        container.style.left = extension_settings[extensionName].x;
+        container.style.top = extension_settings[extensionName].y;
         
         document.removeEventListener('mousemove', handleGroupMove);
         document.removeEventListener('mouseup', handleGroupEnd);
@@ -817,6 +824,9 @@ function handleFreeStart(e, btn) {
     const rect = btn.getBoundingClientRect();
     initialX = rect.left + rect.width/2;
     initialY = rect.top + rect.height/2;
+    
+    lastDragX = initialX;
+    lastDragY = initialY;
 
     document.addEventListener('mousemove', handleFreeMove);
     document.addEventListener('touchmove', handleFreeMove, { passive: false });
@@ -833,8 +843,11 @@ function handleFreeMove(e) {
     const dx = clientX - startX;
     const dy = clientY - startY;
     
-    dragTarget.style.left = (initialX + dx) + 'px';
-    dragTarget.style.top = (initialY + dy) + 'px';
+    lastDragX = initialX + dx;
+    lastDragY = initialY + dy;
+    
+    dragTarget.style.left = lastDragX + 'px';
+    dragTarget.style.top = lastDragY + 'px';
 }
 
 function handleFreeEnd() {
@@ -843,9 +856,9 @@ function handleFreeEnd() {
         
         const winW = window.innerWidth;
         const winH = window.innerHeight;
-        const rect = dragTarget.getBoundingClientRect();
-        const cx = rect.left + rect.width/2;
-        const cy = rect.top + rect.height/2;
+        
+        const cx = lastDragX;
+        const cy = lastDragY;
         
         const pctX = (cx / winW) * 100;
         const pctY = (cy / winH) * 100;
@@ -900,47 +913,22 @@ jQuery(async () => {
     $('#qf_layout_mode').on('change', function() { updateSetting('layoutMode', $(this).val()); });
     
     // Position Sliders
-    $('#qf_pos_x').on('input', function() {
+    $('#qf_pos_x').on('input', function(e) {
+        e.stopPropagation();
         const val = $(this).val();
         $('#qf_pos_x_val').text(val + '%');
-        
-        preventApplyStyles = true;
         updateSetting('x', val + '%');
-        
-        if (container) {
-            requestAnimationFrame(() => {
-                container.style.left = val + '%';
-                void container.offsetHeight;
-                
-                setTimeout(() => {
-                    preventApplyStyles = false;
-                }, 100);
-            });
-        }
     });
     
-    $('#qf_pos_y').on('input', function() {
+    $('#qf_pos_y').on('input', function(e) {
+        e.stopPropagation();
         const val = $(this).val();
         $('#qf_pos_y_val').text(val + '%');
-        
-        preventApplyStyles = true; // Prevent override during manual adjustment
         updateSetting('y', val + '%');
-        
-        // Force immediate update on mobile
-        if (container) {
-            requestAnimationFrame(() => {
-                container.style.top = val + '%';
-                void container.offsetHeight; // Force reflow
-                
-                // Re-enable after delay
-                setTimeout(() => {
-                    preventApplyStyles = false;
-                }, 100);
-            });
-        }
     });
 
-    $('#qf_z_index').on('input', function() {
+    $('#qf_z_index').on('input', function(e) {
+        e.stopPropagation();
         const val = $(this).val();
         $('#qf_z_index_val').text(val);
         updateSetting('zIndex', val);
@@ -960,9 +948,20 @@ jQuery(async () => {
         $('#qf_ui_scale').val(1.0); $('#qf_ui_scale_val').text('1.0');
         $('#qf_z_index').val(800); $('#qf_z_index_val').text('800');
 
-        // Force immediate rebuild
-        renderUI(true);
+        // Force DOM Update for Mobile Response (remove inline styles completely to be safe)
+        if(container) {
+            container.style.left = '50%';
+            container.style.top = '50%';
+            container.style.transform = 'translate(-50%, -50%) scale(1.0)';
+            container.style.zIndex = '800';
+            // Clear any inline styles that might conflict
+            container.style.removeProperty('left');
+            container.style.removeProperty('top');
+            // Re-apply computed
+            setTimeout(() => applyStyles(), 10);
+        }
         
+        renderUI(true);
         toastr.info('Position & Size reset.');
     });
 
