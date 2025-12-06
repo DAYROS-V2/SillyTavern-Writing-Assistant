@@ -466,15 +466,28 @@ function applyStyles() {
     const settings = extension_settings[extensionName];
     
     if (container) {
+        // Calculate actual pixel positions from percentages
+        const pctX = parseFloat(settings.x) || 50;
+        const pctY = parseFloat(settings.y) || 50;
+        
+        // Use margin to center instead of transform
+        const leftPx = `${pctX}%`;
+        const topPx = `${pctY}%`;
+        
         // Don't override position if we're manually positioning
         if (!preventApplyStyles) {
-            console.log('[QF Mobile Debug] applyStyles called, setting position to:', settings.x, settings.y);
-            container.style.left = settings.x;
-            container.style.top = settings.y;
+            console.log('[QF Mobile Debug] applyStyles setting position to:', leftPx, topPx);
+            container.style.left = leftPx;
+            container.style.top = topPx;
+            container.style.marginLeft = '0';
+            container.style.marginTop = '0';
         } else {
             console.log('[QF Mobile Debug] applyStyles blocked by preventApplyStyles flag');
         }
-        container.style.transform = `translate(-50%, -50%) scale(${settings.scale})`;
+        
+        // Only apply scale transform
+        container.style.transform = `scale(${settings.scale})`;
+        container.style.transformOrigin = '0 0'; // Transform from top-left corner
         
         // Apply Z-Index (Override if editing)
         container.style.zIndex = isEditing ? '20000' : (settings.zIndex || 800);
@@ -757,7 +770,7 @@ function showDebugInfo(html) {
 function handleGroupEnd() {
     if(isDragging) {
         isDragging = false;
-        preventApplyStyles = true; // Prevent applyStyles from overriding our manual position
+        preventApplyStyles = true;
         
         // Restore body scrolling
         document.body.style.overflow = '';
@@ -766,15 +779,11 @@ function handleGroupEnd() {
         const winH = window.innerHeight;
         const rect = container.getBoundingClientRect();
         
-        // Calculate center relative to window
-        const cx = rect.left + rect.width/2;
-        const cy = rect.top + rect.height/2;
+        // Use top-left corner instead of center since we're not using translate
+        const pctX = (rect.left / winW) * 100;
+        const pctY = (rect.top / winH) * 100;
         
-        const pctX = (cx / winW) * 100;
-        const pctY = (cy / winH) * 100;
-        
-        console.log('[QF Mobile Debug] Drag ended at:', { pctX, pctY, winW, winH, cx, cy });
-        console.log('[QF Mobile Debug] Container rect:', rect);
+        console.log('[QF Mobile Debug] Drag ended at:', { pctX, pctY, winW, winH, rectLeft: rect.left, rectTop: rect.top });
         
         showDebugInfo(`DRAG END<br>X: ${pctX.toFixed(1)}%<br>Y: ${pctY.toFixed(1)}%<br>Saved!`);
         
@@ -792,19 +801,16 @@ function handleGroupEnd() {
         $('#qf_pos_y').val(pctY);
         $('#qf_pos_y_val').text(pctY.toFixed(0) + '%');
 
-        // Force repaint on next frame (critical for mobile)
+        // Force repaint on next frame
         requestAnimationFrame(() => {
             container.style.left = extension_settings[extensionName].x;
             container.style.top = extension_settings[extensionName].y;
-            console.log('[QF Mobile Debug] Applied styles:', container.style.left, container.style.top);
-            // Force a reflow
+            console.log('[QF Mobile Debug] Applied final position:', container.style.left, container.style.top);
             void container.offsetHeight;
             
-            // Re-enable applyStyles after a short delay
             setTimeout(() => {
                 preventApplyStyles = false;
                 console.log('[QF Mobile Debug] preventApplyStyles cleared');
-                // Clear debug display after 2 seconds
                 setTimeout(() => {
                     const debugDiv = document.getElementById('qf-debug-display');
                     if (debugDiv) debugDiv.remove();
