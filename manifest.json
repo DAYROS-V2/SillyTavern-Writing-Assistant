@@ -1,8 +1,12 @@
 {
-    "display_name": "Quick Formatting",
-    "author": "Dayros",
-    "version": "1.0.1",
-    "description": "Adds a floating, draggable, resizable formatting bar.",
+    "display_name": "Quick Formatting & Spellchecker",
+    "loading_order": 100,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
     "css": "style.css",
-    "js": "index.js"
+    "author": "You",
+    "version": "2.0.2",
+    "settings": "settings.html",
+    "homePage": "https://github.com/DAYROS-V2/SillyTavern-Writing-Assistant.git"
 }
