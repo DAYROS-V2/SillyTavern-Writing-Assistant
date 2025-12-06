@@ -490,6 +490,13 @@ function applyStyles() {
             btn.style.transform = `translate(-50%, -50%) scale(${settings.scale || 1})`;
             btn.style.zIndex = isEditing ? '20000' : (settings.zIndex || 800);
         });
+        
+        // Update Controls (Save Button)
+        const controls = document.querySelector('.qf-free-save-btn');
+        if (controls && !isDragging) {
+            controls.style.left = settings.x;
+            controls.style.top = settings.y;
+        }
     }
 }
 
