@@ -1,0 +1,85 @@
+/* style.css */
+.quick-format-container {
+    display: flex;
+    gap: 5px;
+    padding: 6px;
+    
+    /* Fixed positioning to float above everything */
+    position: fixed;
+    z-index: 20000; /* Extremely high Z-index to be on top of everything */
+    
+    background-color: var(--smart-theme-bg, #1a1b1e);
+    border: 1px solid var(--smart-theme-border, #454545);
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    
+    align-items: center;
+    transform-origin: center center;
+    user-select: none;
+    transition: box-shadow 0.2s, border-color 0.2s;
+    
+    /* Prevent default touch actions like scrolling when touching the bar */
+    touch-action: none; 
+}
+
+/* When in edit mode (double clicked) */
+.quick-format-container.editing {
+    border: 2px dashed var(--smart-theme-accent, #963cff);
+    cursor: move;
+    box-shadow: 0 0 15px var(--smart-theme-accent, #963cff);
+    background-color: rgba(0, 0, 0, 0.95);
+}
+
+.quick-format-btn {
+    background: var(--smart-theme-input-bg, #0000004d);
+    border: 1px solid var(--smart-theme-border, #ffffff33);
+    color: var(--smart-theme-body-text, #e1e1e1);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: monospace;
+    min-width: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.quick-format-btn:hover {
+    background: var(--smart-theme-accent, #963cff);
+    color: #fff;
+    border-color: var(--smart-theme-accent, #963cff);
+}
+
+/* Edit Mode Controls (Hidden by default) */
+.quick-format-controls {
+    display: none;
+    gap: 4px;
+    margin-left: 8px;
+    padding-left: 8px;
+    border-left: 1px solid #555;
+}
+
+.quick-format-container.editing .quick-format-controls {
+    display: flex;
+}
+
+.qf-control-btn {
+    font-size: 10px;
+    padding: 2px 6px;
+    background: #444;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.qf-control-btn.save {
+    background: #2ea043;
+}
+
+.qf-control-btn:hover {
+    opacity: 0.8;
+}
