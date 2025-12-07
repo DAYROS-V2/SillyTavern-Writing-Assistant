@@ -8,10 +8,10 @@ const extensionFolderPath = scriptUrl.substring(0, scriptUrl.lastIndexOf('/'));
 // --- DEFAULTS ---
 const defaultSettings = {
     enabled: true,
-    mobileStyle: 'docked', // Default to Docked everywhere
+    mobileStyle: 'docked',
     x: '50%',
-    y: '0px', // Default to attached (0px offset)
-    zIndex: 10005,
+    y: '0px', 
+    zIndex: 2000,
     scale: 1.0,
     hiddenButtons: { 'btn_ooc': true, 'btn_code': true },
     enhancerEnabled: true,
@@ -43,6 +43,7 @@ let undoBuffer = null;
 let activeDragEl = null;
 let dragStartCoords = { x: 0, y: 0 };
 let dragStartPos = { x: 0, y: 0 }; 
+let trackerInterval = null; 
 
 // --- INITIALIZATION ---
 jQuery(async () => {
@@ -58,7 +59,6 @@ jQuery(async () => {
     setTimeout(() => { renderUI(); }, 1000);
 });
 
-// --- SETTINGS MANAGEMENT ---
 function loadSettings() {
     extension_settings[extensionName] = extension_settings[extensionName] || {};
     for (const key in defaultSettings) {
@@ -74,9 +74,8 @@ function updateSetting(key, value) {
     saveSettingsDebounced();
     if (['mobileStyle', 'enabled', 'enhancerEnabled'].includes(key)) {
         renderUI(true);
-    } else {
-        applyStyles(); 
     }
+    // No else needed, tracker picks up live changes
 }
 
 function syncSettingsToUI() {
@@ -103,9 +102,14 @@ function syncSettingsToUI() {
 
     $('#qf_enhancer_enabled').prop('checked', s.enhancerEnabled);
     $('#qf_btn_color').val(s.btnColor);
+    
     $('#qf_pos_x').val(parseFloat(s.x) || 50); $('#qf_pos_x_val').text(s.x);
-    $('#qf_pos_y').val(parseFloat(s.y) || 0); $('#qf_pos_y_val').text(s.y); // Pixel value now
-    $('#qf_z_index').val(s.zIndex); $('#qf_z_index_val').text(s.zIndex);
+    $('#qf_pos_y').val(parseFloat(s.y) || 0); $('#qf_pos_y_val').text(s.y);
+    
+    // Z-INDEX SYNC (Slider + Input)
+    $('#qf_z_index').val(s.zIndex); 
+    $('#qf_z_index_num').val(s.zIndex);
+    
     $('#qf_ui_scale').val(s.scale); $('#qf_ui_scale_val').text(s.scale);
     $('#qf_api_provider').val(s.apiProvider);
     $('#qf_api_base').val(s.apiBase);
@@ -122,71 +126,69 @@ function initSettingsListeners() {
     $('#qf_mobile_style').on('change', function() { updateSetting('mobileStyle', $(this).val()); });
     
     $('#qf_pos_x').on('input', function() { const v = $(this).val(); $('#qf_pos_x_val').text(v + '%'); updateSetting('x', v + '%'); });
-    // Y Slider now sets Pixels directly
     $('#qf_pos_y').on('input', function() { const v = $(this).val(); $('#qf_pos_y_val').text(v + 'px'); updateSetting('y', v + 'px'); });
     
-    $('#qf_z_index').on('input', function() { const v = $(this).val(); $('#qf_z_index_val').text(v); updateSetting('zIndex', v); });
+    // Z-INDEX DUAL LISTENERS
+    $('#qf_z_index').on('input', function() { 
+        const v = $(this).val(); 
+        $('#qf_z_index_num').val(v); 
+        updateSetting('zIndex', v); 
+    });
+    $('#qf_z_index_num').on('input', function() { 
+        const v = $(this).val(); 
+        $('#qf_z_index').val(v); 
+        updateSetting('zIndex', v); 
+    });
+
     $('#qf_ui_scale').on('input', function() { const v = $(this).val(); $('#qf_ui_scale_val').text(v); updateSetting('scale', v); });
 
     $('#qf_reset_pos').on('click', (e) => { e.preventDefault(); resetPosition(); });
     $('#qf_enhancer_enabled').on('change', function() { updateSetting('enhancerEnabled', $(this).prop('checked')); });
     $('#qf_btn_color').on('change', function() { updateSetting('btnColor', $(this).val()); });
-    
     $('#qf_api_provider').on('change', function() { updateSetting('apiProvider', $(this).val()); updateKeyDisplay(); });
-    $('#qf_api_key').on('change', function() {
-        const s = extension_settings[extensionName];
-        if(s.apiProvider === 'openai') updateSetting('apiKeyOpenAI', $(this).val());
-        else updateSetting('apiKeyOpenRouter', $(this).val());
-        updateKeyDisplay();
-    });
-    $('#qf_clear_key').on('click', function() {
-        const s = extension_settings[extensionName];
-        if(s.apiProvider === 'openai') updateSetting('apiKeyOpenAI', '');
-        else updateSetting('apiKeyOpenRouter', '');
-        updateKeyDisplay();
-    });
+    $('#qf_api_key').on('change', function() { const s = extension_settings[extensionName]; if(s.apiProvider === 'openai') updateSetting('apiKeyOpenAI', $(this).val()); else updateSetting('apiKeyOpenRouter', $(this).val()); updateKeyDisplay(); });
+    $('#qf_clear_key').on('click', function() { const s = extension_settings[extensionName]; if(s.apiProvider === 'openai') updateSetting('apiKeyOpenAI', ''); else updateSetting('apiKeyOpenRouter', ''); updateKeyDisplay(); });
 }
 
-function resetPosition() {
-    updateSetting('x', '50%');
-    updateSetting('y', '0px');
-    updateSetting('scale', 1.0);
-    renderUI(true);
-    toastr.info('Position Reset');
-}
+function resetPosition() { updateSetting('x', '50%'); updateSetting('y', '0px'); updateSetting('scale', 1.0); renderUI(true); toastr.info('Position Reset'); }
+function updateKeyDisplay() { const s = extension_settings[extensionName]; const isOA = s.apiProvider === 'openai'; $('#qf_api_key').val((isOA ? s.apiKeyOpenAI : s.apiKeyOpenRouter) || ''); $('#qf_clear_key').toggle(!!(isOA ? s.apiKeyOpenAI : s.apiKeyOpenRouter)); }
 
-function updateKeyDisplay() {
+// --- TRACKER ---
+function trackPosition() {
+    if (!container) return;
+    const textArea = document.getElementById('send_textarea');
+    if (!textArea) return; 
+    
+    const rect = textArea.getBoundingClientRect();
     const s = extension_settings[extensionName];
-    const isOA = s.apiProvider === 'openai';
-    const key = isOA ? s.apiKeyOpenAI : s.apiKeyOpenRouter;
-    $('#qf_api_key').val(key || '');
-    $('#qf_clear_key').toggle(!!key);
-}
-
-// --- RENDER LOGIC ---
-function applyStyles() {
-    const s = extension_settings[extensionName];
-    if (container) {
-        // UNIFIED STYLE LOGIC
-        container.style.left = s.x;
-        // Use Y as offset margin
-        const offsetPx = parseFloat(s.y) || 0; 
-        container.style.marginBottom = offsetPx + 'px';
-        
-        container.style.zIndex = s.zIndex;
-        container.style.transformOrigin = 'bottom center';
-        container.style.transform = `translateX(-50%) scale(${s.scale})`;
-        
-        const color = s.btnColor || 'white';
-        $('.qf-enhance-btn').removeClass('qf-btn-white qf-btn-gold qf-btn-purple qf-btn-green').addClass('qf-btn-' + color);
-    }
+    
+    let userOffsetPx = parseFloat(s.y) || 0;
+    
+    // DOCKING LOGIC: If Docked, ignore slider and force -2px to overlap border
+    if (s.mobileStyle === 'docked') userOffsetPx = -2;
+    
+    const xPct = parseFloat(s.x) || 50;
+    const leftPos = (window.innerWidth * (xPct / 100));
+    const topPos = rect.top - userOffsetPx;
+    
+    container.style.left = leftPos + 'px';
+    container.style.top = topPos + 'px';
+    container.style.transform = `translate(-50%, -100%) scale(${s.scale})`;
+    container.style.transformOrigin = 'bottom center';
+    
+    // Apply Z-Index from settings
+    container.style.zIndex = isEditing ? '2147483647' : s.zIndex;
+    
+    const color = s.btnColor || 'white';
+    $('.qf-enhance-btn').removeClass('qf-btn-white qf-btn-gold qf-btn-purple qf-btn-green').addClass('qf-btn-' + color);
+    
+    trackerInterval = requestAnimationFrame(trackPosition);
 }
 
 function renderUI(force = false) {
-    if (force) {
-        if(container) container.remove();
-        container = null; 
-    }
+    if (trackerInterval) cancelAnimationFrame(trackerInterval);
+    if (container) container.remove();
+    
     const s = extension_settings[extensionName];
     if (!s.enabled) return;
 
@@ -196,36 +198,21 @@ function renderUI(force = false) {
     container.id = 'qf-main-container';
     container.className = 'quick-format-container';
     
-    // Apply Style Class
     const styleMode = s.mobileStyle || 'docked';
     container.classList.add(`style-${styleMode}`);
     
-    formattingButtons.forEach(b => {
-        if(!s.hiddenButtons[b.id]) container.appendChild(createBtn(b));
-    });
+    formattingButtons.forEach(b => { if(!s.hiddenButtons[b.id]) container.appendChild(createBtn(b)); });
 
     if(s.enhancerEnabled) {
-        const div = document.createElement('div');
-        div.className = 'qf-divider';
-        container.appendChild(div);
+        const div = document.createElement('div'); div.className = 'qf-divider'; container.appendChild(div);
         container.appendChild(createBtn({id: 'enhancer', icon: '<i class="fa-solid fa-wand-magic-sparkles"></i>', title: 'Enhance', action: enhanceText, isEnhance: true}));
         container.appendChild(createBtn({id: 'undo', icon: '<i class="fa-solid fa-rotate-left"></i>', title: 'Undo', action: restoreUndo, isUndo: true}));
     }
 
-    // ALWAYS ATTACH TO TEXT AREA (UNIFIED)
-    const textArea = document.getElementById('send_textarea');
-    if (textArea && textArea.parentElement) {
-        textArea.parentElement.style.position = 'relative'; 
-        textArea.parentElement.insertBefore(container, textArea);
-    } else {
-        document.body.appendChild(container);
-    }
-    
-    // Listeners
+    document.body.appendChild(container);
     container.addEventListener('dblclick', (e) => { e.preventDefault(); e.stopPropagation(); toggleEdit(true); });
     addDragListeners(container);
-    
-    applyStyles();
+    trackPosition();
     console.log(`[QuickFormatting] Mode: ${styleMode}`);
 }
 
@@ -234,8 +221,7 @@ function createBtn(cfg) {
     btn.className = 'quick-format-btn';
     if (cfg.isEnhance) btn.classList.add('qf-enhance-btn');
     if (cfg.isUndo) btn.classList.add('qf-undo-btn');
-    if (cfg.icon) btn.innerHTML = cfg.icon;
-    else btn.innerText = cfg.label;
+    if (cfg.icon) btn.innerHTML = cfg.icon; else btn.innerText = cfg.label;
     btn.title = cfg.title;
     if(cfg.action) btn.onclick = (e) => { e.preventDefault(); cfg.action(); };
     else btn.onclick = (e) => { e.preventDefault(); insertText(cfg.start, cfg.end); };
@@ -243,7 +229,6 @@ function createBtn(cfg) {
     return btn;
 }
 
-// --- DRAG LOGIC (UNIFIED) ---
 function addDragListeners(el) {
     el.addEventListener('mousedown', (e) => handleDragStart(e, el));
     el.addEventListener('touchstart', (e) => handleDragStart(e, el), { passive: false, capture: true });
@@ -251,11 +236,6 @@ function addDragListeners(el) {
 
 function handleDragStart(e, el) {
     if (!isEditing) return;
-    
-    // Allow dragging from buttons if we are in mobile/docked mode to make it easier
-    // But on Desktop prevent clicking buttons while editing?
-    // Let's just allow grabbing anywhere since double-click activates edit mode
-    
     if (e.cancelable) e.preventDefault();
     e.stopPropagation();
 
@@ -264,12 +244,8 @@ function handleDragStart(e, el) {
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     dragStartCoords = { x: clientX, y: clientY };
 
-    // Capture current State
-    const rect = el.getBoundingClientRect();
-    const currentXPct = ((rect.left + rect.width / 2) / window.innerWidth) * 100;
-    const styleMargin = parseFloat(el.style.marginBottom) || 0;
-    
-    dragStartPos = { x: currentXPct, y: styleMargin };
+    const s = extension_settings[extensionName];
+    dragStartPos = { xPct: parseFloat(s.x) || 50, yPx: parseFloat(s.y) || 0 };
 
     document.addEventListener('mousemove', handleDragMove);
     document.addEventListener('mouseup', handleDragEnd);
@@ -286,29 +262,29 @@ function handleDragMove(e) {
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     
-    // X-Axis (%)
     const dx = clientX - dragStartCoords.x;
-    const dPctX = (dx / window.innerWidth) * 100;
-    const newX = dragStartPos.x + dPctX;
-    activeDragEl.style.left = newX + '%';
+    const dPct = (dx / window.innerWidth) * 100;
+    const newXPct = dragStartPos.xPct + dPct;
     
-    // Y-Axis (Pixels Margin)
-    // Drag UP (negative) -> Increase Margin
-    const dy = dragStartCoords.y - clientY; 
-    const newMargin = Math.max(0, dragStartPos.y + dy); 
-    activeDragEl.style.marginBottom = newMargin + 'px';
+    const s = extension_settings[extensionName];
+    
+    // Only allow vertical dragging if NOT docked
+    if (s.mobileStyle !== 'docked') {
+        const dy = dragStartCoords.y - clientY; 
+        let newYPx = dragStartPos.yPx + dy;
+        if(newYPx < 0) newYPx = 0;
+        s.y = newYPx + 'px';
+    }
+    
+    s.x = newXPct + '%';
 }
 
 function handleDragEnd(e) {
     if (!activeDragEl) return;
-    
-    updateSetting('x', activeDragEl.style.left);
-    const marginVal = parseFloat(activeDragEl.style.marginBottom) || 0;
-    updateSetting('y', marginVal + 'px');
-    
-    $('#qf_pos_x').val(parseFloat(activeDragEl.style.left));
-    $('#qf_pos_y').val(marginVal);
-
+    saveSettingsDebounced();
+    const s = extension_settings[extensionName];
+    $('#qf_pos_x').val(parseFloat(s.x));
+    $('#qf_pos_y').val(parseFloat(s.y));
     activeDragEl = null;
     document.removeEventListener('mousemove', handleDragMove);
     document.removeEventListener('mouseup', handleDragEnd);
@@ -316,7 +292,7 @@ function handleDragEnd(e) {
     document.removeEventListener('touchend', handleDragEnd, { capture: true });
 }
 
-function toggleEdit(val) { isEditing = val; if (container) container.classList.toggle('editing', val); applyStyles(); }
+function toggleEdit(val) { isEditing = val; if (container) container.classList.toggle('editing', val); }
 
 function insertText(start, end) {
     const textarea = document.getElementById('send_textarea'); if (!textarea) return;

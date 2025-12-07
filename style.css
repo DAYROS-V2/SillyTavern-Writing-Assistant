@@ -1,59 +1,51 @@
 /* ========================================
-   QUICK FORMATTING - UNIFIED TETHERED STYLE
+   QUICK FORMATTING - Z-INDEX FIX
    ======================================== */
 
-/* --- SETTINGS SLIDERS (BLACK & WHITE) --- */
+/* --- SETTINGS SLIDERS --- */
 .qf-setting-row input[type="range"] {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 100%;
-    height: 6px;
-    background: rgba(255, 255, 255, 0.2); /* Light Gray Track */
-    border-radius: 3px;
-    outline: none;
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 6px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px; outline: none;
 }
-
 .qf-setting-row input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 16px;
-    height: 16px;
-    background: #000000; /* Black Thumb */
-    border: 2px solid #ffffff; /* White Border */
-    border-radius: 50%;
-    cursor: pointer;
+    -webkit-appearance: none; appearance: none;
+    width: 16px; height: 16px;
+    background: #000000; border: 2px solid #ffffff;
+    border-radius: 50%; cursor: pointer;
 }
 
-/* --- MAIN CONTAINER (GLOBAL) --- */
-/* This now applies to BOTH Desktop and Mobile */
+/* --- MAIN CONTAINER --- */
 .quick-format-container {
-    position: absolute !important;
-    bottom: 100% !important;
-    top: auto !important;
+    /* Fixed positioning allows it to float anywhere */
+    position: fixed !important; 
     
-    /* Center horizontally */
-    left: 50%; 
-    transform: translateX(-50%); 
-    right: auto !important;
-    
-    /* Layout */
+    /* Flex Layout */
     display: flex !important;
     flex-direction: row !important;
     justify-content: center;
-    gap: 5px;
     align-items: flex-end;
+    gap: 5px;
     
-    /* Interaction */
-    touch-action: none;
-    z-index: 2000;
+    /* DEFAULT Z-INDEX (Overridden by Slider) */
+    z-index: 2000; 
+    
     width: max-content !important;
-    max-width: 95vw !important;
+    max-width: 98vw !important;
+    
+    touch-action: none; 
+    pointer-events: auto !important;
+    
+    /* Smooth transitions for looks, not position */
+    transition: background-color 0.2s, box-shadow 0.2s;
 }
 
-/* --- EDIT MODE --- */
+/* --- DRAG STATE --- */
 .quick-format-container.editing {
-    z-index: 99999 !important;
-    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.5));
+    /* When editing, temporarily boost Z so you don't lose it */
+    z-index: 2147483647 !important; 
+    filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.6));
     cursor: move !important;
 }
 
@@ -61,29 +53,28 @@
 .quick-format-btn {
     display: flex; align-items: center; justify-content: center;
     min-width: 32px; height: 32px; padding: 0 10px;
-    font-size: 14px; cursor: pointer;
-    font-family: monospace; touch-action: manipulation;
-    pointer-events: auto !important;
+    font-size: 14px; cursor: pointer; font-family: monospace;
+    touch-action: manipulation; pointer-events: auto !important;
+    user-select: none;
 }
 .quick-format-btn:hover { transform: translateY(-1px); }
 .quick-format-btn:active { transform: translateY(0); }
 .editing .quick-format-btn { pointer-events: none; opacity: 0.6; }
 
-/* --- STYLE VARIANTS --- */
+/* --- STYLES --- */
 
-/* 1. DOCKED (Default - Attached) */
+/* 1. DOCKED (Attached) */
 .quick-format-container.style-docked {
     background-color: #1a1b1e !important;
     border: 1px solid #454545 !important;
-    border-bottom: none !important;
+    border-bottom: 1px solid #1a1b1e !important;
     border-radius: 12px 12px 0 0 !important;
-    padding: 5px 12px !important;
-    box-shadow: none !important;
+    padding: 5px 12px 2px 12px !important;
 }
 .quick-format-container.style-docked .quick-format-btn {
     background-color: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 5px;
+    border-radius: 4px;
 }
 
 /* 2. FLOATING (Pills) */
@@ -91,7 +82,6 @@
     background: transparent !important;
     border: none !important;
     padding: 4px !important;
-    pointer-events: none !important; /* Click through gaps */
 }
 .quick-format-container.style-floating .quick-format-btn {
     width: 45px; height: 38px; border-radius: 8px;
@@ -101,7 +91,7 @@
     margin: 0 2px;
 }
 
-/* 3. TOOLBAR (Solid Bar) */
+/* 3. TOOLBAR (Bar) */
 .quick-format-container.style-toolbar {
     background-color: #1a1b1e !important;
     border: 1px solid #454545 !important;
@@ -116,7 +106,7 @@
     width: 40px; height: 36px;
 }
 
-/* --- UTILS --- */
+/* Utils */
 .qf-enhance-btn { font-weight: bold; }
 .qf-undo-btn { color: #ff6b6b; }
 .qf-btn-white { color: #ffffff; }
@@ -124,20 +114,17 @@
 .qf-btn-purple { color: #d0bfff; border-color: rgba(208, 191, 255, 0.3); }
 .qf-btn-green { color: #90ee90; border-color: rgba(144, 238, 144, 0.3); }
 .qf-divider { width: 1px; height: 20px; background-color: rgba(255, 255, 255, 0.2); margin: 0 4px; }
-.style-floating .qf-divider { display: none; } /* Hide divider on floating style */
+.style-floating .qf-divider { display: none; }
 
-/* Animations */
-@keyframes qf-pulse { 0%, 100% { box-shadow: 0 0 5px rgba(255, 255, 255, 0.3); } 50% { box-shadow: 0 0 15px rgba(255, 255, 255, 0.6); } }
-.qf-enhance-btn.generating { animation: qf-generating 1s ease-in-out infinite; }
-@keyframes qf-generating { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+/* Animation */
+.qf-enhance-btn.generating { animation: qf-gen 1s infinite; }
+@keyframes qf-gen { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
 
-/* Settings CSS */
+/* Settings */
 .quick-formatting-settings-wrapper { width: 100%; }
-.qf-details { background: rgba(0, 0, 0, 0.1); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; margin-bottom: 10px; }
-.qf-details summary { padding: 10px 12px; cursor: pointer; font-weight: 500; }
-.qf-details summary:hover { background: rgba(255, 255, 255, 0.05); }
-.qf-details-content { padding: 10px 12px; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+.qf-details { background: rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; margin-bottom: 10px; }
+.qf-details summary { padding: 10px 12px; cursor: pointer; }
+.qf-details-content { padding: 10px 12px; }
 .qf-setting-row { margin-bottom: 10px; }
 .qf-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.quick-formatting-settings-wrapper hr.sysHR { border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 15px 0; }
 .checkbox_label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
