@@ -112,11 +112,14 @@ function updateSetting(key, value) {
 // --- SETTINGS SYNC ---
 function syncSettingsToUI() {
     const s = extension_settings[extensionName];
+    
+    // Toggles
     $('#qf_global_enabled').prop('checked', s.enabled);
     $('#qf_use_global').prop('checked', s.useGlobalApi);
     $('#qf_mood_enabled').prop('checked', s.moodBtnEnabled);
     $('#qf_reply_enabled').prop('checked', s.replyBtnEnabled);
     
+    // Visibility
     if (s.useGlobalApi) { $('#qf_section_global_api').show(); $('.qf-specific-api').hide(); } 
     else { $('#qf_section_global_api').hide(); $('.qf-specific-api').show(); }
 
@@ -342,7 +345,6 @@ function renderUI(force = false) {
         replyContainer = document.createElement('div');
         replyContainer.className = 'quick-format-container style-floating qf-reply-container';
         replyContainer.dataset.kX = 'replyX'; replyContainer.dataset.kY = 'replyY';
-        // ICON CHANGED TO COMMENT
         replyContainer.appendChild(createBtn({ id: 'btn_reply', icon: '<i class="fa-solid fa-comment"></i>', title: 'Auto Reply', action: () => processAI('reply'), isEnhance: true }));
         document.body.appendChild(replyContainer);
         addDragListeners(replyContainer);
@@ -372,7 +374,7 @@ function toggleMoodDropdown() {
     setTimeout(() => { $(document).on('click.qfClose', (e) => { if (!$(e.target).closest('#qf-mood-dropdown, .qf-mood-container').length) { dropdown.remove(); $(document).off('click.qfClose'); } }); }, 100);
 }
 
-// --- MAIN AI LOGIC ---
+// --- AI LOGIC ---
 async function processAI(mode, customPrompt = null) {
     if (isGenerating) { if (abortController) abortController.abort(); isGenerating = false; renderGeneratingState(false); toastr.info('Stopped'); return; }
     
@@ -386,14 +388,13 @@ async function processAI(mode, customPrompt = null) {
     
     const s = extension_settings[extensionName];
     const useGlobal = s.useGlobalApi;
-    const p = useGlobal ? 'global' : mode; // Prefix
+    const p = useGlobal ? 'global' : mode; 
 
     const provider = s[`${p}Provider`];
     const key = provider === 'openai' ? s[`${p}KeyOA`] : s[`${p}KeyOR`];
     const base = s[`${p}Base`];
     const model = s[`${p}Model`];
     
-    // BUILD PARAMS
     const params = {
         model: model || 'gpt-3.5-turbo',
         stream: s[`${p}Stream`],
@@ -414,7 +415,6 @@ async function processAI(mode, customPrompt = null) {
 
     if (!key) { toastr.error(`API Key Missing for ${p.toUpperCase()}`); return; }
 
-    // --- 1. SYSTEM PROMPT CONSTRUCTION ---
     let sys = '';
     if (mode === 'spell') sys = s.spellPrompt;
     else if (mode === 'reply') sys = s.replyPrompt;
@@ -423,10 +423,8 @@ async function processAI(mode, customPrompt = null) {
         sys = universal + customPrompt;
     }
 
-    // --- 2. USER PERSONA INJECTION ---
     const userName = typeof name2 !== 'undefined' ? name2 : 'User';
     let persona = '';
-    // Look for power_user settings (Standard ST location)
     if (typeof power_user !== 'undefined' && power_user.persona_description) {
         persona = power_user.persona_description;
     }
@@ -444,14 +442,11 @@ async function processAI(mode, customPrompt = null) {
             context.chat.slice(-limit).forEach(msg => history.push({ role: msg.is_user ? 'user' : 'assistant', content: msg.mes }));
         }
 
-        // --- 3. MESSAGE CONSTRUCTION ---
         const messages = [{ role: "system", content: sys }, ...history];
         
         if (mode === 'reply') {
-            // REPLY MODE: IGNORE USER TEXTAREA input. Only History + System + Trigger.
             messages.push({ role: "system", content: "Generate the next response now." });
         } else {
-            // MOOD/SPELL MODE: Include user input to rewrite it.
             if (text) messages.push({ role: "user", content: text });
         }
 
@@ -497,8 +492,13 @@ function toggleEdit(val) {
     if (val) {
         $('.quick-format-container').each(function() {
             if ($(this).find('.qf-lock-btn').length === 0) {
+                // FIXED: Use touchstart for mobile responsiveness
                 const lockBtn = $('<button class="qf-lock-btn"><i class="fa-solid fa-lock"></i></button>');
-                lockBtn.on('click', (e) => { e.stopPropagation(); toggleEdit(false); });
+                lockBtn.on('click touchstart', (e) => { 
+                    e.preventDefault(); 
+                    e.stopPropagation(); 
+                    toggleEdit(false); 
+                });
                 $(this).append(lockBtn);
             }
         });
@@ -516,6 +516,14 @@ function renderGeneratingState(active) { $('.qf-enhance-btn').html(active ? '<i 
 function restoreUndo() { const t = document.getElementById('send_textarea'); if (t && undoBuffer) { t.value = undoBuffer; t.dispatchEvent(new Event('input', { bubbles: true })); undoBuffer = null; updateUndoButtonState(); toastr.success('Restored'); } }
 function updateUndoButtonState() { $('.qf-undo-btn').css({opacity: undoBuffer?'1':'0.3', cursor: undoBuffer?'pointer':'default'}); }
 function addDragListeners(el) { el.addEventListener('mousedown',e=>handleDragStart(e,el)); el.addEventListener('touchstart',e=>handleDragStart(e,el),{passive:false,capture:true}); }
-function handleDragStart(e, el) { if (!isEditing) return; e.preventDefault(); e.stopPropagation(); activeDragEl = el; const t = e.touches?e.touches[0]:e; dragStartCoords = {x:t.clientX, y:t.clientY}; const s = extension_settings[extensionName]; dragStartPos={xPct:parseFloat(s[el.dataset.kX])||50, yPx:parseFloat(s[el.dataset.kY])||0, kX:el.dataset.kX, kY:el.dataset.kY}; document.addEventListener('mousemove', handleDragMove); document.addEventListener('mouseup', handleDragEnd); document.addEventListener('touchmove', handleDragMove, {passive:false,capture:true}); document.addEventListener('touchend', handleDragEnd, {capture:true}); }
+
+function handleDragStart(e, el) { 
+    if (!isEditing) return; 
+    // FIXED: Ignore drag if touching the lock button
+    if (e.target.closest('.qf-lock-btn')) return;
+
+    e.preventDefault(); e.stopPropagation(); activeDragEl = el; const t = e.touches?e.touches[0]:e; dragStartCoords = {x:t.clientX, y:t.clientY}; const s = extension_settings[extensionName]; dragStartPos={xPct:parseFloat(s[el.dataset.kX])||50, yPx:parseFloat(s[el.dataset.kY])||0, kX:el.dataset.kX, kY:el.dataset.kY}; document.addEventListener('mousemove', handleDragMove); document.addEventListener('mouseup', handleDragEnd); document.addEventListener('touchmove', handleDragMove, {passive:false,capture:true}); document.addEventListener('touchend', handleDragEnd, {capture:true}); 
+}
+
 function handleDragMove(e) { if(!activeDragEl)return; e.preventDefault(); e.stopPropagation(); const t = e.touches?e.touches[0]:e; const dx = t.clientX-dragStartCoords.x; const s = extension_settings[extensionName]; if(s.mobileStyle!=='docked'||dragStartPos.kX!=='x'){const dy = dragStartCoords.y-t.clientY; let ny=dragStartPos.yPx+dy; if(ny<0)ny=0; s[dragStartPos.kY]=ny+'px';} s[dragStartPos.kX]=(dragStartPos.xPct+((dx/window.innerWidth)*100))+'%'; requestAnimationFrame(updatePosition); }
 function handleDragEnd() { if(!activeDragEl)return; saveSettingsDebounced(); activeDragEl=null; document.removeEventListener('mousemove', handleDragMove); document.removeEventListener('mouseup', handleDragEnd); document.removeEventListener('touchmove', handleDragMove); document.removeEventListener('touchend', handleDragEnd); }
