@@ -11,7 +11,7 @@ const defaultSettings = {
     layoutMode: 'grouped', 
     x: '50%',
     y: '50%',
-    zIndex: 2000,
+    zIndex: 10005, // Updated default to be visible on mobile
     scale: 1.0,
     hiddenButtons: {
         'btn_ooc': true,
@@ -257,13 +257,13 @@ function resetPosition() {
     updateSetting('x', '50%');
     updateSetting('y', '50%');
     updateSetting('scale', 1.0);
-    updateSetting('zIndex', 2000);
+    updateSetting('zIndex', 10005);
     updateSetting('freePositions', {});
     
     $('#qf_pos_x').val(50); $('#qf_pos_x_val').text('50%');
     $('#qf_pos_y').val(50); $('#qf_pos_y_val').text('50%');
     $('#qf_ui_scale').val(1.0); $('#qf_ui_scale_val').text('1.0');
-    $('#qf_z_index').val(2000); $('#qf_z_index_val').text('2000');
+    $('#qf_z_index').val(10005); $('#qf_z_index_val').text('10005');
     
     // FORCE DOM RESET
     if(container) {
@@ -489,13 +489,17 @@ function addDragListeners(el, isFree = false) {
 
 function handleDragStart(e, el, isFree) {
     if (!isEditing) return;
-    if (e.target.tagName === 'BUTTON' && !el.classList.contains('quick-format-container')) return; 
     
+    // Prevent dragging if clicking a button inside a group container
+    if (e.target.tagName === 'BUTTON' && !el.classList.contains('qf-free-mode-btn') && !el.classList.contains('quick-format-container')) return; 
+    
+    // Prevent default browser scrolling/zooming immediately
     if(e.cancelable) e.preventDefault();
     e.stopPropagation();
 
     activeDragEl = el;
     
+    // Unified coordinate getter for Mouse or Touch
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     
@@ -522,6 +526,7 @@ function handleDragStart(e, el, isFree) {
 function handleDragMove(e) {
     if (!activeDragEl) return;
     if(e.cancelable) e.preventDefault();
+    e.stopPropagation();
 
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
