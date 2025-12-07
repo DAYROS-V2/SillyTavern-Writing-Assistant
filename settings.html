@@ -1,119 +1,141 @@
 <div class="quick-formatting-settings-wrapper">
     <div class="inline-drawer">
         <div class="inline-drawer-toggle inline-drawer-header">
-            <b><i class="fa-solid fa-pen-nib"></i> Quick Formatting & Spellchecker</b>
+            <b><i class="fa-solid fa-pen-nib"></i> Quick Formatting</b>
             <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
         </div>
         <div class="inline-drawer-content">
             
-            <div class="flex-container">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                 <label class="checkbox_label">
-                    <input id="qf_global_enabled" type="checkbox" />
-                    <span>Enable Extension</span>
+                    <input id="qf_global_enabled" type="checkbox" /> <span>Enable Extension</span>
+                </label>
+                <label class="checkbox_label" title="Use one API Model for everything">
+                    <input id="qf_use_global" type="checkbox" /> <span><b>Connect All Models</b></span>
                 </label>
             </div>
-
             <hr class="sysHR" />
 
-            <!-- 1. FORMATTING SECTION -->
+            <!-- 1. GLOBAL API SECTION -->
+            <div id="qf_section_global_api" style="display:none; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 5px; margin-bottom: 10px; border: 1px solid cyan;">
+                <h4 style="margin:0 0 5px 0; color: cyan;">Global API Settings</h4>
+                <div class="qf-setting-row"><label>Provider</label><select id="qf_global_provider" class="text_pole"><option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option></select></div>
+                <div class="qf-setting-row"><label>Key</label><input id="qf_global_key" class="text_pole" type="password" /></div>
+                <div class="qf-setting-row"><label>Base URL</label><input id="qf_global_base" class="text_pole" /></div>
+                <div class="qf-setting-row"><button id="qf_global_fetch" class="menu_button"><i class="fa-solid fa-sync"></i> Fetch Models</button></div>
+                <div class="qf-setting-row"><label>Model</label><select id="qf_global_model" class="text_pole"></select></div>
+                
+                <details class="qf-advanced"><summary>Advanced Settings</summary>
+                    <div class="checkbox_label" style="margin-bottom:5px;"><input id="qf_global_stream" type="checkbox" /> <span>Text Streaming</span></div>
+                    <div class="qf-grid-2"><div class="qf-setting-row"><label>Context</label><input id="qf_global_context" class="text_pole" type="number" /></div><div class="qf-setting-row"><label>Tokens</label><input id="qf_global_tokens" class="text_pole" type="number" /></div></div>
+                    <div class="qf-grid-2"><div class="qf-setting-row"><label>Temp</label><input id="qf_global_temp" class="text_pole" type="number" step="0.01" /></div><div class="qf-setting-row"><label>Rep Pen</label><input id="qf_global_rep_pen" class="text_pole" type="number" step="0.01" /></div></div>
+                    <div class="qf-grid-2"><div class="qf-setting-row"><label>Freq Pen</label><input id="qf_global_freq_pen" class="text_pole" type="number" step="0.01" /></div><div class="qf-setting-row"><label>Pres Pen</label><input id="qf_global_pres_pen" class="text_pole" type="number" step="0.01" /></div></div>
+                    <div class="qf-grid-2"><div class="qf-setting-row"><label>Top P</label><input id="qf_global_top_p" class="text_pole" type="number" step="0.01" /></div><div class="qf-setting-row"><label>Top K</label><input id="qf_global_top_k" class="text_pole" type="number" step="1" /></div></div>
+                    <div class="qf-grid-2"><div class="qf-setting-row"><label>Min P</label><input id="qf_global_min_p" class="text_pole" type="number" step="0.01" /></div><div class="qf-setting-row"><label>Top A</label><input id="qf_global_top_a" class="text_pole" type="number" step="0.01" /></div></div>
+                    <div class="qf-setting-row"><label>Seed (-1 = Random)</label><input id="qf_global_seed" class="text_pole" type="number" step="1" /></div>
+                </details>
+            </div>
+
+            <!-- 2. LAYOUT & SPELLCHECKER -->
             <details class="qf-details" open>
-                <summary>Formatting & Layout</summary>
+                <summary>Toolbar & Spellchecker</summary>
                 <div class="qf-details-content">
+                    <div class="qf-setting-row"><label>Buttons</label><div id="qf_buttons_list" style="margin-left: 10px; display: flex; flex-direction: column; gap: 5px;"></div></div>
+                    <hr class="sysHR" style="margin: 10px 0;" />
+                    <div class="qf-setting-row"><label>Style</label><select id="qf_mobile_style" class="text_pole"><option value="docked">Docked</option><option value="floating">Floating</option></select></div>
+                    <div class="qf-grid-2"><div class="qf-setting-row"><label>Pos X</label><input id="qf_pos_x" type="range" max="100" /></div><div class="qf-setting-row"><label>Pos Y</label><input id="qf_pos_y" type="range" max="200" /></div></div>
+                    <div class="qf-setting-row"><label>Z-Index</label><div style="display:flex; gap:10px;"><input id="qf_z_index" type="range" min="-5000" max="9000" step="10" /><input id="qf_z_index_num" type="number" class="text_pole" style="width:70px;" /></div></div>
+                    <div class="qf-setting-row"><label>Scale</label><input id="qf_ui_scale" type="range" min="0.5" max="2.0" step="0.1" /></div>
+                    
+                    <!-- SPELL API -->
+                    <div class="qf-specific-api">
+                        <strong>Spellchecker API</strong>
+                        <div class="qf-grid-2"><select id="qf_spell_provider" class="text_pole"><option value="openrouter">OR</option><option value="openai">OAI</option></select><input id="qf_spell_key" class="text_pole" type="password" placeholder="Key" /></div>
+                        <input id="qf_spell_base" class="text_pole" placeholder="Base URL" style="margin-top: 5px;" />
+                        <div style="display:flex; gap:5px; margin-top:5px;"><button id="qf_spell_fetch" class="menu_button" style="width: 40px;"><i class="fa-solid fa-sync"></i></button><select id="qf_spell_model" class="text_pole" style="flex-grow:1;"></select></div>
+                        <details class="qf-advanced"><summary>Advanced Settings</summary>
+                            <div class="checkbox_label" style="margin-bottom:5px;"><input id="qf_spell_stream" type="checkbox" /> <span>Text Streaming</span></div>
+                            <div class="qf-grid-2"><div class="qf-setting-row"><label>Context</label><input id="qf_spell_context" class="text_pole" type="number" /></div><div class="qf-setting-row"><label>Tokens</label><input id="qf_spell_tokens" class="text_pole" type="number" /></div></div>
+                            <div class="qf-grid-2"><div class="qf-setting-row"><label>Temp</label><input id="qf_spell_temp" class="text_pole" type="number" step="0.01" /></div><div class="qf-setting-row"><label>Rep Pen</label><input id="qf_spell_rep_pen" class="text_pole" type="number" step="0.01" /></div></div>
+                            <div class="qf-grid-2"><div class="qf-setting-row"><label>Freq Pen</label><input id="qf_spell_freq_pen" class="text_pole" type="number" step="0.01" /></div><div class="qf-setting-row"><label>Pres Pen</label><input id="qf_spell_pres_pen" class="text_pole" type="number" step="0.01" /></div></div>
+                            <div class="qf-grid-2"><div class="qf-setting-row"><label>Top P</label><input id="qf_spell_top_p" class="text_pole" type="number" step="0.01" /></div><div class="qf-setting-row"><label>Top K</label><input id="qf_spell_top_k" class="text_pole" type="number" step="1" /></div></div>
+                            <div class="qf-grid-2"><div class="qf-setting-row"><label>Min P</label><input id="qf_spell_min_p" class="text_pole" type="number" step="0.01" /></div><div class="qf-setting-row"><label>Top A</label><input id="qf_spell_top_a" class="text_pole" type="number" step="0.01" /></div></div>
+                            <div class="qf-setting-row"><label>Seed (-1 = Random)</label><input id="qf_spell_seed" class="text_pole" type="number" step="1" /></div>
+                        </details>
+                    </div>
+                    <div class="qf-setting-row" style="margin-top:5px;"><label>Prompt</label><textarea id="qf_spell_prompt" class="text_pole" rows="1"></textarea></div>
+                </div>
+            </details>
+
+            <!-- 3. AUTO REPLY -->
+            <details class="qf-details">
+                <summary>Auto-Reply (Lightbulb)</summary>
+                <div class="qf-details-content">
+                    <div class="checkbox_label"><input id="qf_reply_enabled" type="checkbox" /> <span>Show Reply Button (Comment Icon)</span></div>
+                    <div class="qf-specific-api">
+                        <strong>Auto-Reply API</strong>
+                        <div class="qf-grid-2"><select id="qf_reply_provider" class="text_pole"><option value="openrouter">OR</option><option value="openai">OAI</option></select><input id="qf_reply_key" class="text_pole" type="password" placeholder="Key" /></div>
+                        <input id="qf_reply_base" class="text_pole" placeholder="Base URL" style="margin-top: 5px;" />
+                        <div style="display:flex; gap:5px; margin-top:5px;"><button id="qf_reply_fetch" class="menu_button" style="width: 40px;"><i class="fa-solid fa-sync"></i></button><select id="qf_reply_model" class="text_pole" style="flex-grow:1;"></select></div>
+                        <details class="qf-advanced"><summary>Advanced Settings</summary>
+                            <div class="checkbox_label" style="margin-bottom:5px;"><input id="qf_reply_stream" type="checkbox" /> <span>Text Streaming</span></div>
+                            <div class="qf-grid-2"><div class="qf-setting-row"><label>Context</label><input id="qf_reply_context" class="text_pole" type="number" /></div><div class="qf-setting-row"><label>Tokens</label><input id="qf_reply_tokens" class="text_pole" type="number" /></div></div>
+                            <div class="qf-grid-2"><div class="qf-setting-row"><label>Temp</label><input id="qf_reply_temp" class="text_pole" type="number" step="0.01" /></div><div class="qf-setting-row"><label>Rep Pen</label><input id="qf_reply_rep_pen" class="text_pole" type="number" step="0.01" /></div></div>
+                            <div class="qf-grid-2"><div class="qf-setting-row"><label>Freq Pen</label><input id="qf_reply_freq_pen" class="text_pole" type="number" step="0.01" /></div><div class="qf-setting-row"><label>Pres Pen</label><input id="qf_reply_pres_pen" class="text_pole" type="number" step="0.01" /></div></div>
+                            <div class="qf-grid-2"><div class="qf-setting-row"><label>Top P</label><input id="qf_reply_top_p" class="text_pole" type="number" step="0.01" /></div><div class="qf-setting-row"><label>Top K</label><input id="qf_reply_top_k" class="text_pole" type="number" step="1" /></div></div>
+                            <div class="qf-grid-2"><div class="qf-setting-row"><label>Min P</label><input id="qf_reply_min_p" class="text_pole" type="number" step="0.01" /></div><div class="qf-setting-row"><label>Top A</label><input id="qf_reply_top_a" class="text_pole" type="number" step="0.01" /></div></div>
+                            <div class="qf-setting-row"><label>Seed (-1 = Random)</label><input id="qf_reply_seed" class="text_pole" type="number" step="1" /></div>
+                        </details>
+                    </div>
+                    <div class="qf-setting-row" style="margin-top:5px;"><label>Prompt</label><textarea id="qf_reply_prompt" class="text_pole" rows="1"></textarea></div>
+                </div>
+            </details>
+
+            <!-- 4. MOODS -->
+            <details class="qf-details">
+                <summary>Moods & Tones</summary>
+                <div class="qf-details-content">
+                    <div class="checkbox_label"><input id="qf_mood_enabled" type="checkbox" /> <span>Show Brain Button</span></div>
+                    <div class="qf-specific-api">
+                        <strong>Moods API</strong>
+                        <div class="qf-grid-2"><select id="qf_mood_provider" class="text_pole"><option value="openrouter">OR</option><option value="openai">OAI</option></select><input id="qf_mood_key" class="text_pole" type="password" placeholder="Key" /></div>
+                        <input id="qf_mood_base" class="text_pole" placeholder="Base URL" style="margin-top: 5px;" />
+                        <div style="display:flex; gap:5px; margin-top:5px;"><button id="qf_mood_fetch" class="menu_button" style="width: 40px;"><i class="fa-solid fa-sync"></i></button><select id="qf_mood_model" class="text_pole" style="flex-grow:1;"></select></div>
+                        <details class="qf-advanced"><summary>Advanced Settings</summary>
+                            <div class="checkbox_label" style="margin-bottom:5px;"><input id="qf_mood_stream" type="checkbox" /> <span>Text Streaming</span></div>
+                            <div class="qf-grid-2"><div class="qf-setting-row"><label>Context</label><input id="qf_mood_context" class="text_pole" type="number" /></div><div class="qf-setting-row"><label>Tokens</label><input id="qf_mood_tokens" class="text_pole" type="number" /></div></div>
+                            <div class="qf-grid-2"><div class="qf-setting-row"><label>Temp</label><input id="qf_mood_temp" class="text_pole" type="number" step="0.01" /></div><div class="qf-setting-row"><label>Rep Pen</label><input id="qf_mood_rep_pen" class="text_pole" type="number" step="0.01" /></div></div>
+                            <div class="qf-grid-2"><div class="qf-setting-row"><label>Freq Pen</label><input id="qf_mood_freq_pen" class="text_pole" type="number" step="0.01" /></div><div class="qf-setting-row"><label>Pres Pen</label><input id="qf_mood_pres_pen" class="text_pole" type="number" step="0.01" /></div></div>
+                            <div class="qf-grid-2"><div class="qf-setting-row"><label>Top P</label><input id="qf_mood_top_p" class="text_pole" type="number" step="0.01" /></div><div class="qf-setting-row"><label>Top K</label><input id="qf_mood_top_k" class="text_pole" type="number" step="1" /></div></div>
+                            <div class="qf-grid-2"><div class="qf-setting-row"><label>Min P</label><input id="qf_mood_min_p" class="text_pole" type="number" step="0.01" /></div><div class="qf-setting-row"><label>Top A</label><input id="qf_mood_top_a" class="text_pole" type="number" step="0.01" /></div></div>
+                            <div class="qf-setting-row"><label>Seed (-1 = Random)</label><input id="qf_mood_seed" class="text_pole" type="number" step="1" /></div>
+                        </details>
+                    </div>
                     
                     <div class="qf-setting-row">
-                        <label>Buttons</label>
-                        <div id="qf_buttons_container" style="display: flex; flex-direction: column; gap: 5px; margin-left: 5px;">
-                            <!-- JS injects buttons -->
-                        </div>
-                        <div style="margin-top: 5px; margin-left: 5px;">
-                             <label class="checkbox_label">
-                                <input id="qf_enhancer_enabled" type="checkbox" />
-                                <span><i class="fa-solid fa-wand-magic-sparkles"></i> Spell Check / Enhancer</span>
-                            </label>
-                        </div>
+                        <label>Universal System Prompt (Applied to ALL Moods)</label>
+                        <textarea id="qf_mood_universal" class="text_pole" rows="2" placeholder="Example: You are a professional editor."></textarea>
                     </div>
 
-                    <div class="qf-grid-2">
-                        <div class="qf-setting-row">
-                            <label>Style</label>
-                            <select id="qf_mobile_style" class="text_pole">
-                                <option value="docked">Docked (Attached)</option>
-                                <option value="floating">Floating Pills</option>
-                                <option value="toolbar">Toolbar (Bar)</option>
-                            </select>
+                    <label>Mood List</label>
+                    <div id="qf_mood_list" style="margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.1); padding: 5px; border-radius: 5px;"></div>
+                    
+                    <div style="background: rgba(0,0,0,0.2); padding: 5px; border-radius: 5px;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                            <strong>Add New Mood</strong>
+                            <a href="https://fontawesome.com/search?m=free" target="_blank" style="font-size:0.8em; color:cyan; text-decoration:none;">
+                                <i class="fa-solid fa-search"></i> Find Icons
+                            </a>
                         </div>
-                        <div class="qf-setting-row">
-                            <label>Button Color</label>
-                            <select id="qf_btn_color" class="text_pole">
-                                <option value="white">White</option>
-                                <option value="gold">Gold</option>
-                                <option value="purple">Purple</option>
-                                <option value="green">Green</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- POSITION SLIDERS -->
-                    <div class="qf-setting-row">
-                        <label>Position X (Horizontal)</label>
-                        <div style="display: flex; gap: 10px; align-items: center;">
-                            <input id="qf_pos_x" type="range" min="0" max="100" step="1" style="flex-grow: 1;" />
-                            <span id="qf_pos_x_val" style="width: 45px; text-align: right; font-size: 0.8em; opacity: 0.8;">50%</span>
-                        </div>
-                    </div>
-
-                    <div class="qf-setting-row">
-                        <label>Vertical Offset (px)</label>
-                        <div style="display: flex; gap: 10px; align-items: center;">
-                            <input id="qf_pos_y" type="range" min="0" max="200" step="1" style="flex-grow: 1;" />
-                            <span id="qf_pos_y_val" style="width: 45px; text-align: right; font-size: 0.8em; opacity: 0.8;">0px</span>
-                        </div>
-                    </div>
-
-                    <div class="qf-setting-row">
-                        <label>Z-Index (Layer)</label>
-                        <div style="display: flex; gap: 10px; align-items: center;">
-                            <!-- Range: -5000 to 9000 -->
-                            <input id="qf_z_index" type="range" min="-5000" max="9000" step="10" style="flex-grow: 1;" />
-                            <!-- Editable Input Box -->
-                            <input id="qf_z_index_num" type="number" min="-5000" max="99999" class="text_pole" style="width: 70px; text-align: center; padding: 2px;" />
-                        </div>
-                    </div>
-
-                    <div class="qf-setting-row">
-                        <label>UI Scale (Zoom)</label>
-                        <div style="display: flex; gap: 10px; align-items: center;">
-                            <input id="qf_ui_scale" type="range" min="0.5" max="2.0" step="0.1" style="flex-grow: 1;" />
-                            <span id="qf_ui_scale_val" style="width: 45px; text-align: right; font-size: 0.8em; opacity: 0.8;">1.0</span>
-                        </div>
-                    </div>
-
-                    <div style="display: flex; gap: 10px; margin-top: 10px;">
-                        <button id="qf_reset_pos" class="menu_button">
-                            <i class="fa-solid fa-arrows-rotate"></i> Reset Position
-                        </button>
+                        <input id="qf_new_mood_label" class="text_pole" placeholder="Label" style="width: 100%; margin-bottom: 3px;" />
+                        <input id="qf_new_mood_icon" class="text_pole" placeholder="Icon class (fa-ghost)" style="width: 100%; margin-bottom: 3px;" />
+                        <textarea id="qf_new_mood_prompt" class="text_pole" rows="1" placeholder="Prompt" style="width: 100%;"></textarea>
+                        <button id="qf_add_mood_btn" class="menu_button" style="width:100%; margin-top: 3px;">Add Mood</button>
                     </div>
                 </div>
             </details>
 
-            <!-- 2. AI SETTINGS SECTION -->
-            <details class="qf-details">
-                <summary>AI Settings (Spell Checker)</summary>
-                <div class="qf-details-content">
-                    <div class="qf-setting-row"><label>Provider</label><select id="qf_api_provider" class="text_pole"><option value="openrouter">OpenRouter</option><option value="openai">OpenAI / Compatible</option></select></div>
-                    <div class="qf-setting-row"><label>Base URL</label><input id="qf_api_base" class="text_pole" type="text" /></div>
-                    <div class="qf-setting-row"><label>API Key</label><div style="display: flex; gap: 5px;"><input id="qf_api_key" class="text_pole" type="password" style="flex-grow: 1;" /><button id="qf_clear_key" class="menu_button" style="width: 40px;"><i class="fa-solid fa-trash"></i></button></div></div>
-                    <div class="qf-setting-row"><label>Model</label><select id="qf_api_model" class="text_pole"><option value="" disabled selected>Select...</option></select></div>
-                    <div class="qf-setting-row"><button id="qf_fetch_models" class="menu_button"><i class="fa-solid fa-sync"></i> Fetch Models</button></div>
-                    <div class="qf-setting-row"><label>System Prompt</label><textarea id="qf_system_prompt" class="text_pole" rows="3"></textarea></div>
-                    <div class="qf-grid-2">
-                        <div class="qf-setting-row"><label>Context</label><input id="qf_context_limit" class="text_pole" type="number" min="0" max="50" value="5" /></div>
-                        <div class="qf-setting-row"><label>Max Tokens</label><input id="qf_max_tokens" class="text_pole" type="number" min="0" value="0" /></div>
-                    </div>
-                    <div class="qf-setting-row"><label>Temperature</label><input id="qf_temp" class="text_pole" type="number" step="0.01" value="1" /></div>
-                    <div class="checkbox_label"><input id="qf_stream" type="checkbox" /><span>Streaming</span></div>
-                </div>
-            </details>
+            <button id="qf_reset_pos" class="menu_button" style="margin-top: 10px;">Reset All Positions</button>
         </div>
     </div>
 </div>
