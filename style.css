@@ -1,439 +1,150 @@
 /* ========================================
    QUICK FORMATTING EXTENSION - COMPLETE CSS
+   TETHERED OFFSET UPDATE
    ======================================== */
 
-/* --- SETTINGS PANEL STYLES --- */
-.quick-formatting-settings-wrapper {
-    width: 100%;
-}
-
-.qf-details {
-    background: rgba(0, 0, 0, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 6px;
-    margin-bottom: 10px;
-}
-
-.qf-details summary {
-    padding: 10px 12px;
-    cursor: pointer;
-    font-weight: 500;
-    user-select: none;
-    -webkit-user-select: none;
-}
-
-.qf-details summary:hover {
-    background: rgba(255, 255, 255, 0.05);
-}
-
-.qf-details-content {
-    padding: 10px 12px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.qf-setting-row {
-    margin-bottom: 10px;
-}
-
-.qf-setting-row label {
-    display: block;
-    margin-bottom: 4px;
-    font-size: 0.9em;
-    opacity: 0.9;
-}
-
-.qf-grid-2 {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-}
-
-/* --- MAIN CONTAINER --- */
+/* --- MAIN CONTAINER (DESKTOP) --- */
 .quick-format-container {
-    display: flex;
-    gap: 5px;
-    padding: 5px;
-    background-color: #1a1b1e;
-    border: 1px solid #454545;
-    border-radius: 8px;
+    display: flex; gap: 5px; padding: 5px;
+    background-color: #1a1b1e; border: 1px solid #454545; border-radius: 8px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-    align-items: center;
-    justify-content: center;
-    user-select: none;
-    -webkit-user-select: none;
-    -webkit-touch-callout: none;
-    -ms-user-select: none;
-    touch-action: none;
-    -webkit-overflow-scrolling: auto;
-    /* FIX: Removed !important here to allow slider to work */
-    z-index: 2000;
-    transition: box-shadow 0.2s, border-color 0.2s;
-    flex-wrap: wrap;
-    max-width: 90vw;
+    align-items: center; justify-content: center;
+    user-select: none !important; touch-action: none;
+    z-index: 2000; max-width: 90vw;
 }
-
-.quick-format-container.vertical {
-    flex-direction: column;
-    width: min-content;
-}
-
-/* --- EDIT MODE STYLING --- */
-.quick-format-container.editing,
-.qf-free-mode-btn.editing {
-    border-color: #963cff !important;
-    box-shadow: 0 0 15px rgba(150, 60, 255, 0.5) !important;
-    background-color: rgba(26, 27, 30, 0.95);
-    /* High Z-Index for edit mode */
-    z-index: 99999 !important;
-    cursor: move !important;
-    touch-action: none !important;
+.quick-format-container.vertical { flex-direction: column; width: min-content; }
+.quick-format-container.editing {
+    border-color: #963cff !important; box-shadow: 0 0 15px rgba(150, 60, 255, 0.5) !important;
+    background-color: rgba(26, 27, 30, 0.95); z-index: 99999 !important; cursor: move !important;
 }
 
 /* --- BUTTONS --- */
 .quick-format-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 32px;
-    height: 32px;
-    padding: 0 10px;
-    background-color: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 5px;
-    color: #e1e1e1;
-    font-size: 14px;
-    cursor: pointer;
-    transition: all 0.2s;
-    font-family: monospace;
-    user-select: none;
-    -webkit-user-select: none;
-    -webkit-touch-callout: none;
-    touch-action: manipulation;
+    display: flex; align-items: center; justify-content: center;
+    min-width: 32px; height: 32px; padding: 0 10px;
+    background-color: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 5px; color: #e1e1e1; font-size: 14px; cursor: pointer;
+    transition: all 0.2s; font-family: monospace; touch-action: manipulation;
 }
+.quick-format-btn:hover { background-color: rgba(255, 255, 255, 0.15); transform: translateY(-1px); }
+.quick-format-btn:active { transform: translateY(0); }
+.editing .quick-format-btn { pointer-events: none; opacity: 0.6; }
 
-.quick-format-btn:hover {
-    background-color: rgba(255, 255, 255, 0.15);
-    transform: translateY(-1px);
-}
+/* Colors & Icons */
+.qf-enhance-btn { font-weight: bold; }
+.qf-undo-btn { color: #ff6b6b; }
+.qf-btn-white { color: #ffffff; }
+.qf-btn-gold { color: #ffd700; border-color: rgba(255, 215, 0, 0.3); }
+.qf-btn-purple { color: #d0bfff; border-color: rgba(208, 191, 255, 0.3); }
+.qf-btn-green { color: #90ee90; border-color: rgba(144, 238, 144, 0.3); }
+.qf-divider { width: 1px; height: 20px; background-color: rgba(255, 255, 255, 0.2); margin: 0 4px; }
+.vertical .qf-divider { width: 20px; height: 1px; margin: 4px 0; }
 
-.quick-format-btn:active {
-    transform: translateY(0);
-}
-
-/* Edit Mode - Disable interactions on buttons to allow drag */
-.editing .quick-format-btn {
-    pointer-events: none;
-    opacity: 0.6;
-}
-
-/* --- FREE MODE --- */
-.qf-free-wrapper {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 0;
-    height: 0;
-    pointer-events: none;
-}
-
-.qf-free-mode-btn {
-    position: fixed;
-    z-index: 2000;
-    touch-action: none;
-    -webkit-touch-callout: none;
-    -webkit-user-select: none;
-    user-select: none;
-    pointer-events: auto;
-    background-color: #1a1b1e;
-    border: 1px solid #454545;
-    border-radius: 8px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-    padding: 8px 12px;
-}
-
-.qf-free-mode-btn.editing {
-    cursor: move !important;
-    pointer-events: auto !important;
-    opacity: 1 !important;
-    touch-action: none !important;
-}
-
-.qf-free-controls {
-    position: fixed;
-    display: none;
-    gap: 2px;
-    z-index: 20001;
-    padding: 4px;
-    background: rgba(0, 0, 0, 0.9);
-    border: 1px solid #963cff;
-    border-radius: 6px;
-    pointer-events: auto;
-}
-
-/* --- SPECIAL BUTTONS --- */
-.qf-enhance-btn {
-    font-weight: bold;
-}
-
-.qf-undo-btn {
-    color: #ff6b6b;
-    transition: opacity 0.2s;
-}
-
-/* --- BUTTON COLORS --- */
-.qf-btn-white {
-    color: #ffffff;
-}
-
-.qf-btn-gold {
-    color: #ffd700;
-    border-color: rgba(255, 215, 0, 0.3);
-}
-
-.qf-btn-purple {
-    color: #d0bfff;
-    border-color: rgba(208, 191, 255, 0.3);
-}
-
-.qf-btn-green {
-    color: #90ee90;
-    border-color: rgba(144, 238, 144, 0.3);
-}
-
-/* --- DIVIDER --- */
-.qf-divider {
-    width: 1px;
-    height: 20px;
-    background-color: rgba(255, 255, 255, 0.2);
-    margin: 0 4px;
-}
-
-.vertical .qf-divider {
-    width: 20px;
-    height: 1px;
-    margin: 4px 0;
-}
-
-/* --- EDIT CONTROLS (GROUPED) --- */
+/* Edit Controls */
 .qf-edit-controls {
-    display: none;
-    position: absolute;
-    top: -40px;
-    right: 0;
-    background: #2b2b2b;
-    padding: 4px;
-    border-radius: 6px;
-    gap: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-    border: 1px solid #963cff;
-    pointer-events: auto !important;
+    display: none; position: absolute; top: -40px; right: 0;
+    background: #2b2b2b; padding: 4px; border-radius: 6px; gap: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); border: 1px solid #963cff;
 }
-
-.editing .qf-edit-controls {
-    display: flex;
-}
-
+.editing .qf-edit-controls { display: flex; }
 .qf-control-btn {
-    width: 28px;
-    height: 28px;
-    font-size: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #444;
-    border: 1px solid #666;
-    color: white;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background 0.2s;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
+    width: 28px; height: 28px; font-size: 16px; display: flex; align-items: center; justify-content: center;
+    background: #444; border: 1px solid #666; color: white; border-radius: 4px;
 }
+.qf-control-btn.save { width: auto; padding: 0 10px; font-size: 11px; background: #2ea043; border-color: #3fb950; }
 
-.qf-control-btn:hover {
-    background: #555;
-}
+/* Animations */
+.editing { animation: qf-pulse 1.5s ease-in-out infinite; }
+@keyframes qf-pulse { 0%, 100% { box-shadow: 0 0 5px rgba(150, 60, 255, 0.3); } 50% { box-shadow: 0 0 15px rgba(150, 60, 255, 0.6); } }
+.qf-enhance-btn.generating { animation: qf-generating 1s ease-in-out infinite; }
+@keyframes qf-generating { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
-.qf-control-btn:active {
-    background: #333;
-}
+/* Settings CSS */
+.quick-formatting-settings-wrapper { width: 100%; }
+.qf-details { background: rgba(0, 0, 0, 0.1); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; margin-bottom: 10px; }
+.qf-details summary { padding: 10px 12px; cursor: pointer; font-weight: 500; }
+.qf-details summary:hover { background: rgba(255, 255, 255, 0.05); }
+.qf-details-content { padding: 10px 12px; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+.qf-setting-row { margin-bottom: 10px; }
+.qf-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.qf-setting-row input[type="range"] { -webkit-appearance: none; width: 100%; height: 6px; background: rgba(255, 255, 255, 0.1); border-radius: 3px; }
+.qf-setting-row input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: #963cff; border-radius: 50%; }
+.quick-formatting-settings-wrapper hr.sysHR { border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 15px 0; }
+.checkbox_label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 
-.qf-control-btn.save {
-    width: auto;
-    padding: 0 10px;
-    font-size: 11px;
-    font-weight: bold;
-    background: #2ea043;
-    border-color: #3fb950;
-}
-
-.qf-control-btn.save:hover {
-    background: #3fb950;
-}
-
-.qf-control-btn.zoom {
-    font-weight: bold;
-}
-
-/* ===========================================
-   CRITICAL: MOBILE DRAG MODE SCROLL BLOCKING
-   =========================================== */
-
-/* When dragging is active, lock everything */
-body.qf-dragging {
-    overflow: hidden !important;
-    position: fixed !important;
-    width: 100% !important;
-    height: 100% !important;
-    top: 0 !important;
-    left: 0 !important;
-    touch-action: none !important;
-    -webkit-overflow-scrolling: auto !important;
-    overscroll-behavior: none !important;
-    overscroll-behavior-y: none !important;
-}
-
-body.qf-dragging * {
-    touch-action: none !important;
-}
-
-html.qf-dragging {
-    overflow: hidden !important;
-    touch-action: none !important;
-    overscroll-behavior: none !important;
-}
-
-/* Prevent pull-to-refresh specifically */
-body.qf-dragging,
-html.qf-dragging {
-    overscroll-behavior-y: contain !important;
-}
-
-/* --- MOBILE SPECIFIC FIXES --- */
-@media (hover: none) and (pointer: coarse) {
-    /* Mobile devices */
-    .quick-format-container,
-    .qf-free-mode-btn {
-        touch-action: none !important;
-        -webkit-overflow-scrolling: auto !important;
+/* ==================================================
+   MOBILE DOCKED MODES
+   Triggers when screen is smaller than 1000px
+   ================================================== */
+@media screen and (max-width: 1000px) {
+    .quick-format-container.mobile-docked {
+        position: absolute !important;
+        /* Default to 100% (top of text bar). JS adds margin-bottom for offset */
+        bottom: 100% !important;
+        top: auto !important;
+        
+        /* X-AXIS: Default center (JS will apply transform later) */
+        left: 50%; 
+        transform: translateX(-50%); 
+        right: auto !important;
+        
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: center;
+        gap: 5px;
+        
+        box-shadow: none !important;
+        cursor: default !important;
     }
-    
-    .quick-format-btn {
-        min-width: 40px;
-        height: 40px;
-        font-size: 16px;
+
+    .quick-format-container.mobile-docked .qf-divider { display: none; }
+    .qf-edit-controls { display: none !important; }
+
+    /* === STYLE 1: FLOATING (DEFAULT) === */
+    .quick-format-container.mobile-style-floating {
+        background: transparent !important;
+        border: none !important;
+        /* No fixed margin, handled by JS slider */
+        pointer-events: none !important; 
+        padding: 4px !important;
+        width: max-content !important;
     }
-    
-    .qf-control-btn {
-        width: 36px;
-        height: 36px;
-        font-size: 18px;
+    .quick-format-container.mobile-style-floating .quick-format-btn {
+        pointer-events: auto !important;
+        width: 45px; height: 38px; border-radius: 8px;
+        background-color: rgba(20, 20, 25, 0.9);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(4px);
     }
-    
-    .qf-control-btn.save {
-        padding: 0 14px;
-        font-size: 13px;
+
+    /* === STYLE 2: TOOLBAR === */
+    .quick-format-container.mobile-style-toolbar {
+        background-color: #1a1b1e !important;
+        border: 1px solid #454545 !important;
+        border-radius: 8px !important;
+        pointer-events: auto !important;
+        padding: 6px 10px !important;
+        width: max-content !important;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.5) !important;
     }
-    
-    /* Prevent text selection on mobile */
-    .quick-format-container *,
-    .qf-free-mode-btn * {
-        user-select: none !important;
-        -webkit-user-select: none !important;
-        -webkit-touch-callout: none !important;
+    .quick-format-container.mobile-style-toolbar .quick-format-btn {
+        width: 40px; height: 36px; border-radius: 5px;
+        background-color: rgba(255, 255, 255, 0.05);
     }
-}
 
-/* --- PREVENT iOS BOUNCE/SCROLL DURING DRAG --- */
-.quick-format-container.editing,
-.qf-free-mode-btn.editing {
-    -webkit-overflow-scrolling: auto;
-    overscroll-behavior: none;
-}
-
-/* --- ANIMATIONS --- */
-@keyframes qf-pulse {
-    0%, 100% {
-        box-shadow: 0 0 5px rgba(150, 60, 255, 0.3);
+    /* === STYLE 3: DOCKED === */
+    .quick-format-container.mobile-style-docked {
+        background-color: #1a1b1e !important;
+        border: 1px solid #454545 !important;
+        border-bottom: none !important;
+        border-radius: 12px 12px 0 0 !important;
+        pointer-events: auto !important;
+        padding: 5px 12px !important;
+        width: max-content !important;
+        z-index: 10; 
     }
-    50% {
-        box-shadow: 0 0 15px rgba(150, 60, 255, 0.6);
+    .quick-format-container.mobile-style-docked .quick-format-btn {
+        width: 42px; height: 34px; border-radius: 5px;
+        background-color: rgba(255, 255, 255, 0.05);
     }
-}
-
-.editing {
-    animation: qf-pulse 1.5s ease-in-out infinite;
-}
-
-/* --- GENERATING STATE --- */
-.qf-enhance-btn.generating {
-    animation: qf-generating 1s ease-in-out infinite;
-}
-
-@keyframes qf-generating {
-    0%, 100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.5;
-    }
-}
-
-/* --- SETTINGS PANEL ENHANCEMENTS --- */
-.qf-setting-row input[type="range"] {
-    -webkit-appearance: none;
-    appearance: none;
-    height: 6px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 3px;
-    outline: none;
-}
-
-.qf-setting-row input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 16px;
-    height: 16px;
-    background: #963cff;
-    border-radius: 50%;
-    cursor: pointer;
-}
-
-.qf-setting-row input[type="range"]::-moz-range-thumb {
-    width: 16px;
-    height: 16px;
-    background: #963cff;
-    border-radius: 50%;
-    cursor: pointer;
-    border: none;
-}
-
-/* --- HR STYLING --- */
-.quick-formatting-settings-wrapper hr.sysHR {
-    border: none;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    margin: 15px 0;
-}
-
-/* --- CHECKBOX ALIGNMENT --- */
-.quick-formatting-settings-wrapper .checkbox_label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-}
-
-.quick-formatting-settings-wrapper .checkbox_label input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    margin: 0;
-}
-
-/* --- BUTTON CONTAINER IN SETTINGS --- */
-#qf_buttons_container .checkbox_label {
-    padding: 4px 0;
-}
-
-#qf_buttons_container .checkbox_label small {
-    opacity: 0.6;
 }
