@@ -1,36 +1,122 @@
 /* ========================================
-   QUICK FORMATTING EXTENSION - COMPLETE CSS
-   TETHERED OFFSET UPDATE
+   QUICK FORMATTING - UNIFIED TETHERED STYLE
    ======================================== */
 
-/* --- MAIN CONTAINER (DESKTOP) --- */
-.quick-format-container {
-    display: flex; gap: 5px; padding: 5px;
-    background-color: #1a1b1e; border: 1px solid #454545; border-radius: 8px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-    align-items: center; justify-content: center;
-    user-select: none !important; touch-action: none;
-    z-index: 2000; max-width: 90vw;
+/* --- SETTINGS SLIDERS (BLACK & WHITE) --- */
+.qf-setting-row input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.2); /* Light Gray Track */
+    border-radius: 3px;
+    outline: none;
 }
-.quick-format-container.vertical { flex-direction: column; width: min-content; }
+
+.qf-setting-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: #000000; /* Black Thumb */
+    border: 2px solid #ffffff; /* White Border */
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+/* --- MAIN CONTAINER (GLOBAL) --- */
+/* This now applies to BOTH Desktop and Mobile */
+.quick-format-container {
+    position: absolute !important;
+    bottom: 100% !important;
+    top: auto !important;
+    
+    /* Center horizontally */
+    left: 50%; 
+    transform: translateX(-50%); 
+    right: auto !important;
+    
+    /* Layout */
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: center;
+    gap: 5px;
+    align-items: flex-end;
+    
+    /* Interaction */
+    touch-action: none;
+    z-index: 2000;
+    width: max-content !important;
+    max-width: 95vw !important;
+}
+
+/* --- EDIT MODE --- */
 .quick-format-container.editing {
-    border-color: #963cff !important; box-shadow: 0 0 15px rgba(150, 60, 255, 0.5) !important;
-    background-color: rgba(26, 27, 30, 0.95); z-index: 99999 !important; cursor: move !important;
+    z-index: 99999 !important;
+    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.5));
+    cursor: move !important;
 }
 
 /* --- BUTTONS --- */
 .quick-format-btn {
     display: flex; align-items: center; justify-content: center;
     min-width: 32px; height: 32px; padding: 0 10px;
-    background-color: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 5px; color: #e1e1e1; font-size: 14px; cursor: pointer;
-    transition: all 0.2s; font-family: monospace; touch-action: manipulation;
+    font-size: 14px; cursor: pointer;
+    font-family: monospace; touch-action: manipulation;
+    pointer-events: auto !important;
 }
-.quick-format-btn:hover { background-color: rgba(255, 255, 255, 0.15); transform: translateY(-1px); }
+.quick-format-btn:hover { transform: translateY(-1px); }
 .quick-format-btn:active { transform: translateY(0); }
 .editing .quick-format-btn { pointer-events: none; opacity: 0.6; }
 
-/* Colors & Icons */
+/* --- STYLE VARIANTS --- */
+
+/* 1. DOCKED (Default - Attached) */
+.quick-format-container.style-docked {
+    background-color: #1a1b1e !important;
+    border: 1px solid #454545 !important;
+    border-bottom: none !important;
+    border-radius: 12px 12px 0 0 !important;
+    padding: 5px 12px !important;
+    box-shadow: none !important;
+}
+.quick-format-container.style-docked .quick-format-btn {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 5px;
+}
+
+/* 2. FLOATING (Pills) */
+.quick-format-container.style-floating {
+    background: transparent !important;
+    border: none !important;
+    padding: 4px !important;
+    pointer-events: none !important; /* Click through gaps */
+}
+.quick-format-container.style-floating .quick-format-btn {
+    width: 45px; height: 38px; border-radius: 8px;
+    background-color: rgba(20, 20, 25, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(4px);
+    margin: 0 2px;
+}
+
+/* 3. TOOLBAR (Solid Bar) */
+.quick-format-container.style-toolbar {
+    background-color: #1a1b1e !important;
+    border: 1px solid #454545 !important;
+    border-radius: 8px !important;
+    padding: 6px 10px !important;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.5) !important;
+}
+.quick-format-container.style-toolbar .quick-format-btn {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 5px;
+    width: 40px; height: 36px;
+}
+
+/* --- UTILS --- */
 .qf-enhance-btn { font-weight: bold; }
 .qf-undo-btn { color: #ff6b6b; }
 .qf-btn-white { color: #ffffff; }
@@ -38,24 +124,10 @@
 .qf-btn-purple { color: #d0bfff; border-color: rgba(208, 191, 255, 0.3); }
 .qf-btn-green { color: #90ee90; border-color: rgba(144, 238, 144, 0.3); }
 .qf-divider { width: 1px; height: 20px; background-color: rgba(255, 255, 255, 0.2); margin: 0 4px; }
-.vertical .qf-divider { width: 20px; height: 1px; margin: 4px 0; }
-
-/* Edit Controls */
-.qf-edit-controls {
-    display: none; position: absolute; top: -40px; right: 0;
-    background: #2b2b2b; padding: 4px; border-radius: 6px; gap: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); border: 1px solid #963cff;
-}
-.editing .qf-edit-controls { display: flex; }
-.qf-control-btn {
-    width: 28px; height: 28px; font-size: 16px; display: flex; align-items: center; justify-content: center;
-    background: #444; border: 1px solid #666; color: white; border-radius: 4px;
-}
-.qf-control-btn.save { width: auto; padding: 0 10px; font-size: 11px; background: #2ea043; border-color: #3fb950; }
+.style-floating .qf-divider { display: none; } /* Hide divider on floating style */
 
 /* Animations */
-.editing { animation: qf-pulse 1.5s ease-in-out infinite; }
-@keyframes qf-pulse { 0%, 100% { box-shadow: 0 0 5px rgba(150, 60, 255, 0.3); } 50% { box-shadow: 0 0 15px rgba(150, 60, 255, 0.6); } }
+@keyframes qf-pulse { 0%, 100% { box-shadow: 0 0 5px rgba(255, 255, 255, 0.3); } 50% { box-shadow: 0 0 15px rgba(255, 255, 255, 0.6); } }
 .qf-enhance-btn.generating { animation: qf-generating 1s ease-in-out infinite; }
 @keyframes qf-generating { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
@@ -67,84 +139,5 @@
 .qf-details-content { padding: 10px 12px; border-top: 1px solid rgba(255, 255, 255, 0.1); }
 .qf-setting-row { margin-bottom: 10px; }
 .qf-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.qf-setting-row input[type="range"] { -webkit-appearance: none; width: 100%; height: 6px; background: rgba(255, 255, 255, 0.1); border-radius: 3px; }
-.qf-setting-row input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: #963cff; border-radius: 50%; }
 .quick-formatting-settings-wrapper hr.sysHR { border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 15px 0; }
 .checkbox_label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-
-/* ==================================================
-   MOBILE DOCKED MODES
-   Triggers when screen is smaller than 1000px
-   ================================================== */
-@media screen and (max-width: 1000px) {
-    .quick-format-container.mobile-docked {
-        position: absolute !important;
-        /* Default to 100% (top of text bar). JS adds margin-bottom for offset */
-        bottom: 100% !important;
-        top: auto !important;
-        
-        /* X-AXIS: Default center (JS will apply transform later) */
-        left: 50%; 
-        transform: translateX(-50%); 
-        right: auto !important;
-        
-        display: flex !important;
-        flex-direction: row !important;
-        justify-content: center;
-        gap: 5px;
-        
-        box-shadow: none !important;
-        cursor: default !important;
-    }
-
-    .quick-format-container.mobile-docked .qf-divider { display: none; }
-    .qf-edit-controls { display: none !important; }
-
-    /* === STYLE 1: FLOATING (DEFAULT) === */
-    .quick-format-container.mobile-style-floating {
-        background: transparent !important;
-        border: none !important;
-        /* No fixed margin, handled by JS slider */
-        pointer-events: none !important; 
-        padding: 4px !important;
-        width: max-content !important;
-    }
-    .quick-format-container.mobile-style-floating .quick-format-btn {
-        pointer-events: auto !important;
-        width: 45px; height: 38px; border-radius: 8px;
-        background-color: rgba(20, 20, 25, 0.9);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        backdrop-filter: blur(4px);
-    }
-
-    /* === STYLE 2: TOOLBAR === */
-    .quick-format-container.mobile-style-toolbar {
-        background-color: #1a1b1e !important;
-        border: 1px solid #454545 !important;
-        border-radius: 8px !important;
-        pointer-events: auto !important;
-        padding: 6px 10px !important;
-        width: max-content !important;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.5) !important;
-    }
-    .quick-format-container.mobile-style-toolbar .quick-format-btn {
-        width: 40px; height: 36px; border-radius: 5px;
-        background-color: rgba(255, 255, 255, 0.05);
-    }
-
-    /* === STYLE 3: DOCKED === */
-    .quick-format-container.mobile-style-docked {
-        background-color: #1a1b1e !important;
-        border: 1px solid #454545 !important;
-        border-bottom: none !important;
-        border-radius: 12px 12px 0 0 !important;
-        pointer-events: auto !important;
-        padding: 5px 12px !important;
-        width: max-content !important;
-        z-index: 10; 
-    }
-    .quick-format-container.mobile-style-docked .quick-format-btn {
-        width: 42px; height: 34px; border-radius: 5px;
-        background-color: rgba(255, 255, 255, 0.05);
-    }
-}

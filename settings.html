@@ -33,33 +33,24 @@
                         </div>
                     </div>
 
-                    <!-- Layout Options (Toggled by JS) -->
-                    <div class="qf-setting-row" id="row_desktop_layout">
-                        <label>Desktop Layout</label>
-                        <select id="qf_layout_mode" class="text_pole">
-                            <option value="grouped">Horizontal (Grouped)</option>
-                            <option value="vertical">Vertical (Grouped)</option>
-                            <!-- Free mode removed temporarily as it complicates things, or keep if you use it -->
-                        </select>
-                    </div>
-
-                    <div class="qf-setting-row" id="row_mobile_style" style="display:none;">
-                        <label>Mobile Style</label>
-                        <select id="qf_mobile_style" class="text_pole">
-                            <option value="floating">Floating Pills (Default)</option>
-                            <option value="toolbar">Toolbar (Dark Bar)</option>
-                            <option value="docked">Docked (Attached)</option>
-                        </select>
-                    </div>
-
-                    <div class="qf-setting-row">
-                        <label>Spell Check Color</label>
-                        <select id="qf_btn_color" class="text_pole">
-                            <option value="white">White (Default)</option>
-                            <option value="gold">Gold</option>
-                            <option value="purple">Purple</option>
-                            <option value="green">Green</option>
-                        </select>
+                    <div class="qf-grid-2">
+                        <div class="qf-setting-row">
+                            <label>Style</label>
+                            <select id="qf_mobile_style" class="text_pole">
+                                <option value="docked">Docked (Attached)</option>
+                                <option value="floating">Floating Pills</option>
+                                <option value="toolbar">Toolbar (Bar)</option>
+                            </select>
+                        </div>
+                        <div class="qf-setting-row">
+                            <label>Button Color</label>
+                            <select id="qf_btn_color" class="text_pole">
+                                <option value="white">White</option>
+                                <option value="gold">Gold</option>
+                                <option value="purple">Purple</option>
+                                <option value="green">Green</option>
+                            </select>
+                        </div>
                     </div>
 
                     <!-- POSITION SLIDERS -->
@@ -71,11 +62,11 @@
                         </div>
                     </div>
 
-                    <div class="qf-setting-row" id="row_pos_y">
-                        <label>Position Y (Vertical)</label>
+                    <div class="qf-setting-row">
+                        <label>Vertical Offset (px)</label>
                         <div style="display: flex; gap: 10px; align-items: center;">
-                            <input id="qf_pos_y" type="range" min="0" max="100" step="1" style="flex-grow: 1;" />
-                            <span id="qf_pos_y_val" style="width: 35px; text-align: right;">50%</span>
+                            <input id="qf_pos_y" type="range" min="0" max="200" step="1" style="flex-grow: 1;" />
+                            <span id="qf_pos_y_val" style="width: 35px; text-align: right;">0px</span>
                         </div>
                     </div>
 
