@@ -43,16 +43,25 @@ let undoBuffer = null;
 let activeDragEl = null;
 let dragStartCoords = { x: 0, y: 0 };
 let dragStartPos = { x: 0, y: 0 }; 
-let trackerInterval = null; 
+let resizeObserver = null;
 
 // --- INITIALIZATION ---
 jQuery(async () => {
     console.log('[QuickFormatting] Initializing...');
     try {
+        // Load HTML into settings panel
         const settingsHtml = await $.get(`${extensionFolderPath}/settings.html`);
         $('#extensions_settings').append(settingsHtml);
+        
+        // Load CSS dynamically
+        const link = document.createElement( "link" );
+        link.href = `${extensionFolderPath}/style.css`;
+        link.type = "text/css";
+        link.rel = "stylesheet";
+        document.getElementsByTagName( "head" )[0].appendChild( link );
+
     } catch (e) {
-        console.error('[QuickFormatting] Failed to load settings.html', e);
+        console.error('[QuickFormatting] Failed to load assets', e);
     }
     loadSettings();
     initSettingsListeners();
@@ -72,10 +81,14 @@ function loadSettings() {
 function updateSetting(key, value) {
     extension_settings[extensionName][key] = value;
     saveSettingsDebounced();
+    
+    // Live Updates
     if (['mobileStyle', 'enabled', 'enhancerEnabled'].includes(key)) {
         renderUI(true);
+    } else {
+        // For simple position/style updates, just update the existing container
+        updateContainerStyles();
     }
-    // No else needed, tracker picks up live changes
 }
 
 function syncSettingsToUI() {
@@ -106,7 +119,6 @@ function syncSettingsToUI() {
     $('#qf_pos_x').val(parseFloat(s.x) || 50); $('#qf_pos_x_val').text(s.x);
     $('#qf_pos_y').val(parseFloat(s.y) || 0); $('#qf_pos_y_val').text(s.y);
     
-    // Z-INDEX SYNC (Slider + Input)
     $('#qf_z_index').val(s.zIndex); 
     $('#qf_z_index_num').val(s.zIndex);
     
@@ -114,6 +126,15 @@ function syncSettingsToUI() {
     $('#qf_api_provider').val(s.apiProvider);
     $('#qf_api_base').val(s.apiBase);
     updateKeyDisplay();
+    
+    // Restore saved model if exists
+    if(s.apiModel) {
+        if ($('#qf_api_model option[value="'+s.apiModel+'"]').length === 0) {
+            $('#qf_api_model').append(new Option(s.apiModel, s.apiModel));
+        }
+        $('#qf_api_model').val(s.apiModel);
+    }
+
     $('#qf_stream').prop('checked', s.stream);
     $('#qf_system_prompt').val(s.systemPrompt);
     $('#qf_context_limit').val(s.contextLimit);
@@ -128,33 +149,117 @@ function initSettingsListeners() {
     $('#qf_pos_x').on('input', function() { const v = $(this).val(); $('#qf_pos_x_val').text(v + '%'); updateSetting('x', v + '%'); });
     $('#qf_pos_y').on('input', function() { const v = $(this).val(); $('#qf_pos_y_val').text(v + 'px'); updateSetting('y', v + 'px'); });
     
-    // Z-INDEX DUAL LISTENERS
-    $('#qf_z_index').on('input', function() { 
-        const v = $(this).val(); 
-        $('#qf_z_index_num').val(v); 
-        updateSetting('zIndex', v); 
-    });
-    $('#qf_z_index_num').on('input', function() { 
-        const v = $(this).val(); 
-        $('#qf_z_index').val(v); 
-        updateSetting('zIndex', v); 
-    });
+    $('#qf_z_index').on('input', function() { const v = $(this).val(); $('#qf_z_index_num').val(v); updateSetting('zIndex', v); });
+    $('#qf_z_index_num').on('input', function() { const v = $(this).val(); $('#qf_z_index').val(v); updateSetting('zIndex', v); });
 
     $('#qf_ui_scale').on('input', function() { const v = $(this).val(); $('#qf_ui_scale_val').text(v); updateSetting('scale', v); });
 
     $('#qf_reset_pos').on('click', (e) => { e.preventDefault(); resetPosition(); });
     $('#qf_enhancer_enabled').on('change', function() { updateSetting('enhancerEnabled', $(this).prop('checked')); });
     $('#qf_btn_color').on('change', function() { updateSetting('btnColor', $(this).val()); });
-    $('#qf_api_provider').on('change', function() { updateSetting('apiProvider', $(this).val()); updateKeyDisplay(); });
-    $('#qf_api_key').on('change', function() { const s = extension_settings[extensionName]; if(s.apiProvider === 'openai') updateSetting('apiKeyOpenAI', $(this).val()); else updateSetting('apiKeyOpenRouter', $(this).val()); updateKeyDisplay(); });
-    $('#qf_clear_key').on('click', function() { const s = extension_settings[extensionName]; if(s.apiProvider === 'openai') updateSetting('apiKeyOpenAI', ''); else updateSetting('apiKeyOpenRouter', ''); updateKeyDisplay(); });
+    
+    $('#qf_api_provider').on('change', function() { 
+        updateSetting('apiProvider', $(this).val()); 
+        updateKeyDisplay(); 
+    });
+    
+    $('#qf_api_key').on('change', function() { 
+        const s = extension_settings[extensionName]; 
+        if(s.apiProvider === 'openai') updateSetting('apiKeyOpenAI', $(this).val()); 
+        else updateSetting('apiKeyOpenRouter', $(this).val()); 
+        updateKeyDisplay(); 
+    });
+    
+    $('#qf_clear_key').on('click', function() { 
+        const s = extension_settings[extensionName]; 
+        if(s.apiProvider === 'openai') updateSetting('apiKeyOpenAI', ''); 
+        else updateSetting('apiKeyOpenRouter', ''); 
+        updateKeyDisplay(); 
+    });
+
+    $('#qf_fetch_models').on('click', (e) => { e.preventDefault(); fetchModels(); });
+    $('#qf_api_model').on('change', function() { updateSetting('apiModel', $(this).val()); });
+    
+    $('#qf_stream').on('change', function() { updateSetting('stream', $(this).prop('checked')); });
+    $('#qf_system_prompt').on('change', function() { updateSetting('systemPrompt', $(this).val()); });
+    $('#qf_context_limit').on('change', function() { updateSetting('contextLimit', $(this).val()); });
+    $('#qf_max_tokens').on('change', function() { updateSetting('maxTokens', $(this).val()); });
+    $('#qf_temp').on('change', function() { updateSetting('temperature', $(this).val()); });
 }
 
-function resetPosition() { updateSetting('x', '50%'); updateSetting('y', '0px'); updateSetting('scale', 1.0); renderUI(true); toastr.info('Position Reset'); }
-function updateKeyDisplay() { const s = extension_settings[extensionName]; const isOA = s.apiProvider === 'openai'; $('#qf_api_key').val((isOA ? s.apiKeyOpenAI : s.apiKeyOpenRouter) || ''); $('#qf_clear_key').toggle(!!(isOA ? s.apiKeyOpenAI : s.apiKeyOpenRouter)); }
+async function fetchModels() {
+    const s = extension_settings[extensionName];
+    const key = s.apiProvider === 'openai' ? s.apiKeyOpenAI : s.apiKeyOpenRouter;
+    
+    if(!key) { toastr.error('Please enter an API Key first.'); return; }
+    
+    const btn = $('#qf_fetch_models');
+    const icon = btn.find('i');
+    icon.removeClass('fa-sync').addClass('fa-spin fa-spinner');
+    
+    try {
+        const response = await fetch(`${s.apiBase}/models`, {
+            headers: { 'Authorization': `Bearer ${key}` }
+        });
+        
+        if (!response.ok) throw new Error('Network response was not ok');
+        
+        const data = await response.json();
+        const models = data.data ? data.data : data; // Handle different structures
+        
+        const select = $('#qf_api_model');
+        select.empty();
+        select.append('<option value="" disabled selected>Select Model</option>');
+        
+        models.sort((a,b) => a.id.localeCompare(b.id)).forEach(m => {
+            select.append(`<option value="${m.id}">${m.id}</option>`);
+        });
+        
+        toastr.success(`Fetched ${models.length} models.`);
+    } catch (err) {
+        console.error(err);
+        toastr.error('Failed to fetch models. Check Console.');
+    } finally {
+        icon.removeClass('fa-spin fa-spinner').addClass('fa-sync');
+    }
+}
 
-// --- TRACKER ---
-function trackPosition() {
+function resetPosition() { 
+    updateSetting('x', '50%'); 
+    updateSetting('y', '0px'); 
+    updateSetting('scale', 1.0); 
+    renderUI(true); 
+    toastr.info('Position Reset'); 
+}
+
+function updateKeyDisplay() { 
+    const s = extension_settings[extensionName]; 
+    const isOA = s.apiProvider === 'openai'; 
+    $('#qf_api_key').val((isOA ? s.apiKeyOpenAI : s.apiKeyOpenRouter) || ''); 
+    $('#qf_clear_key').toggle(!!(isOA ? s.apiKeyOpenAI : s.apiKeyOpenRouter)); 
+}
+
+// --- OPTIMIZED TRACKER ---
+function initTracker() {
+    if (resizeObserver) resizeObserver.disconnect();
+    const textArea = document.getElementById('send_textarea');
+    if (!textArea) return;
+
+    // Listen for resize of the textarea (dragging the corner)
+    resizeObserver = new ResizeObserver(() => updatePosition());
+    resizeObserver.observe(textArea);
+
+    // Listen for window resize
+    window.addEventListener('resize', updatePosition);
+    
+    // Listen for scroll (updating position if docked to something moving)
+    window.addEventListener('scroll', updatePosition, true);
+    
+    // Initial update
+    updatePosition();
+}
+
+function updatePosition() {
     if (!container) return;
     const textArea = document.getElementById('send_textarea');
     if (!textArea) return; 
@@ -164,7 +269,7 @@ function trackPosition() {
     
     let userOffsetPx = parseFloat(s.y) || 0;
     
-    // DOCKING LOGIC: If Docked, ignore slider and force -2px to overlap border
+    // DOCKING LOGIC
     if (s.mobileStyle === 'docked') userOffsetPx = -2;
     
     const xPct = parseFloat(s.x) || 50;
@@ -173,24 +278,33 @@ function trackPosition() {
     
     container.style.left = leftPos + 'px';
     container.style.top = topPos + 'px';
+    
+    // Only update transform if not set (prevents overwriting scale)
     container.style.transform = `translate(-50%, -100%) scale(${s.scale})`;
-    container.style.transformOrigin = 'bottom center';
+}
+
+function updateContainerStyles() {
+    if (!container) return;
+    const s = extension_settings[extensionName];
+    
+    updatePosition(); // Recalculate positions
     
     // Apply Z-Index from settings
     container.style.zIndex = isEditing ? '2147483647' : s.zIndex;
+    container.style.transformOrigin = 'bottom center';
     
     const color = s.btnColor || 'white';
-    $('.qf-enhance-btn').removeClass('qf-btn-white qf-btn-gold qf-btn-purple qf-btn-green').addClass('qf-btn-' + color);
-    
-    trackerInterval = requestAnimationFrame(trackPosition);
+    $(container).find('.qf-enhance-btn').removeClass('qf-btn-white qf-btn-gold qf-btn-purple qf-btn-green').addClass('qf-btn-' + color);
 }
 
 function renderUI(force = false) {
-    if (trackerInterval) cancelAnimationFrame(trackerInterval);
     if (container) container.remove();
     
     const s = extension_settings[extensionName];
-    if (!s.enabled) return;
+    if (!s.enabled) {
+        if (resizeObserver) resizeObserver.disconnect();
+        return;
+    }
 
     syncSettingsToUI();
 
@@ -212,7 +326,9 @@ function renderUI(force = false) {
     document.body.appendChild(container);
     container.addEventListener('dblclick', (e) => { e.preventDefault(); e.stopPropagation(); toggleEdit(true); });
     addDragListeners(container);
-    trackPosition();
+    
+    initTracker(); // Start the optimized tracker
+    updateContainerStyles();
     console.log(`[QuickFormatting] Mode: ${styleMode}`);
 }
 
@@ -277,6 +393,9 @@ function handleDragMove(e) {
     }
     
     s.x = newXPct + '%';
+    
+    // Immediate update during drag
+    requestAnimationFrame(updatePosition);
 }
 
 function handleDragEnd(e) {
@@ -292,7 +411,13 @@ function handleDragEnd(e) {
     document.removeEventListener('touchend', handleDragEnd, { capture: true });
 }
 
-function toggleEdit(val) { isEditing = val; if (container) container.classList.toggle('editing', val); }
+function toggleEdit(val) { 
+    isEditing = val; 
+    if (container) {
+        container.classList.toggle('editing', val);
+        updateContainerStyles(); // Re-apply Z-index
+    }
+}
 
 function insertText(start, end) {
     const textarea = document.getElementById('send_textarea'); if (!textarea) return;
