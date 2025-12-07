@@ -65,7 +65,8 @@
     -ms-user-select: none;
     touch-action: none;
     -webkit-overflow-scrolling: auto;
-    z-index: 2000 !important;
+    /* FIX: Removed !important here to allow slider to work */
+    z-index: 2000;
     transition: box-shadow 0.2s, border-color 0.2s;
     flex-wrap: wrap;
     max-width: 90vw;
@@ -82,7 +83,8 @@
     border-color: #963cff !important;
     box-shadow: 0 0 15px rgba(150, 60, 255, 0.5) !important;
     background-color: rgba(26, 27, 30, 0.95);
-    z-index: 20000 !important;
+    /* High Z-Index for edit mode */
+    z-index: 99999 !important;
     cursor: move !important;
     touch-action: none !important;
 }
