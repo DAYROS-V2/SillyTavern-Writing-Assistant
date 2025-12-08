@@ -38,13 +38,38 @@
 
             <!-- 2. LAYOUT & SPELLCHECKER -->
             <details class="qf-details" open>
-                <summary>Toolbar & Spellchecker</summary>
+                <summary>Toolbar & Layout</summary>
                 <div class="qf-details-content">
-                    <div class="qf-setting-row"><label>Buttons</label><div id="qf_buttons_list" style="margin-left: 10px; display: flex; flex-direction: column; gap: 5px;"></div></div>
+                    
+                    <div class="qf-setting-row">
+                        <label>Buttons</label>
+                        <div id="qf_buttons_list" style="margin-left: 10px; display: flex; flex-direction: column; gap: 5px;"></div>
+                    </div>
+                    
+                    <!-- NEW GROUP TOGGLE -->
+                    <div class="checkbox_label" style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px;">
+                        <input id="qf_grouped_widgets" type="checkbox" /> 
+                        <span><b>Group Widgets (2x2 Grid)</b></span>
+                    </div>
+
+                    <div class="checkbox_label" style="margin-top: 5px;">
+                        <input id="qf_tools_enabled" type="checkbox" /> 
+                        <span>Show Tools (Wand & Undo)</span>
+                    </div>
+
                     <hr class="sysHR" style="margin: 10px 0;" />
+
                     <div class="qf-setting-row"><label>Style</label><select id="qf_mobile_style" class="text_pole"><option value="docked">Docked</option><option value="floating">Floating</option></select></div>
                     <div class="qf-grid-2"><div class="qf-setting-row"><label>Pos X</label><input id="qf_pos_x" type="range" max="100" /></div><div class="qf-setting-row"><label>Pos Y</label><input id="qf_pos_y" type="range" max="200" /></div></div>
-                    <div class="qf-setting-row"><label>Z-Index</label><div style="display:flex; gap:10px;"><input id="qf_z_index" type="range" min="-5000" max="9000" step="10" /><input id="qf_z_index_num" type="number" class="text_pole" style="width:70px;" /></div></div>
+                    
+                    <div class="qf-setting-row">
+                        <label>Z-Index (Layer)</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input id="qf_z_index" type="range" min="-5000" max="9000" step="10" style="flex-grow: 1;" />
+                            <input id="qf_z_index_num" type="number" min="-5000" max="99999" class="text_pole" style="width: 70px; text-align: center; padding: 2px;" />
+                        </div>
+                    </div>
+
                     <div class="qf-setting-row"><label>Scale</label><input id="qf_ui_scale" type="range" min="0.5" max="2.0" step="0.1" /></div>
                     
                     <!-- SPELL API -->
@@ -69,9 +94,11 @@
 
             <!-- 3. AUTO REPLY -->
             <details class="qf-details">
-                <summary>Auto-Reply (Lightbulb)</summary>
+                <summary>Auto-Reply</summary>
                 <div class="qf-details-content">
                     <div class="checkbox_label"><input id="qf_reply_enabled" type="checkbox" /> <span>Show Reply Button (Comment Icon)</span></div>
+                    
+                    <!-- REPLY API -->
                     <div class="qf-specific-api">
                         <strong>Auto-Reply API</strong>
                         <div class="qf-grid-2"><select id="qf_reply_provider" class="text_pole"><option value="openrouter">OR</option><option value="openai">OAI</option></select><input id="qf_reply_key" class="text_pole" type="password" placeholder="Key" /></div>
@@ -96,6 +123,8 @@
                 <summary>Moods & Tones</summary>
                 <div class="qf-details-content">
                     <div class="checkbox_label"><input id="qf_mood_enabled" type="checkbox" /> <span>Show Brain Button</span></div>
+                    
+                    <!-- MOOD API -->
                     <div class="qf-specific-api">
                         <strong>Moods API</strong>
                         <div class="qf-grid-2"><select id="qf_mood_provider" class="text_pole"><option value="openrouter">OR</option><option value="openai">OAI</option></select><input id="qf_mood_key" class="text_pole" type="password" placeholder="Key" /></div>
